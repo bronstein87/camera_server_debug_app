@@ -1,0 +1,1498 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>CameraOptionsWindow</class>
+ <widget class="QWidget" name="CameraOptionsWindow">
+  <property name="windowModality">
+   <enum>Qt::WindowModal</enum>
+  </property>
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>824</width>
+    <height>535</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Настройки камер</string>
+  </property>
+  <layout class="QGridLayout" name="gridLayout">
+   <item row="0" column="0">
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>3</number>
+     </property>
+     <widget class="QWidget" name="tab">
+      <attribute name="title">
+       <string>Параметры камеры</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_2">
+       <item row="2" column="0" alignment="Qt::AlignTop">
+        <widget class="QLabel" name="label_19">
+         <property name="text">
+          <string>Частота</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1">
+        <widget class="QSpinBox" name="sendFrameRateSpinBox">
+         <property name="minimum">
+          <number>1</number>
+         </property>
+         <property name="maximum">
+          <number>60</number>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1" colspan="4">
+        <layout class="QGridLayout" name="gridLayout_8">
+         <item row="1" column="1" alignment="Qt::AlignHCenter">
+          <widget class="QLabel" name="curExpLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" alignment="Qt::AlignLeft">
+          <widget class="QLabel" name="minExpLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2" alignment="Qt::AlignRight">
+          <widget class="QLabel" name="maxExpLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="3">
+          <widget class="QSlider" name="exposureHorizontalSlider">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_3">
+         <property name="text">
+          <string>Разрешение</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1" colspan="4">
+        <layout class="QHBoxLayout" name="horizontalLayout">
+         <item>
+          <widget class="QSpinBox" name="widthSpinBox">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="maximum">
+            <number>2000</number>
+           </property>
+           <property name="value">
+            <number>1920</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_4">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>x</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="heightSpinBox">
+           <property name="enabled">
+            <bool>false</bool>
+           </property>
+           <property name="maximum">
+            <number>2000</number>
+           </property>
+           <property name="value">
+            <number>1080</number>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="0" alignment="Qt::AlignTop">
+        <widget class="QLabel" name="label_20">
+         <property name="text">
+          <string>Фреймрейт (c камеры)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_21">
+         <property name="text">
+          <string>Фокусировка</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0" alignment="Qt::AlignTop">
+        <widget class="QLabel" name="label_15">
+         <property name="text">
+          <string>Экспозиция</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_6">
+         <property name="text">
+          <string>Фреймрейт (при передаче)</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="1" colspan="4">
+        <layout class="QGridLayout" name="gridLayout_9">
+         <item row="1" column="0" alignment="Qt::AlignLeft">
+          <widget class="QLabel" name="minPixelClockLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1" alignment="Qt::AlignHCenter">
+          <widget class="QLabel" name="curPixelClockLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2" alignment="Qt::AlignRight">
+          <widget class="QLabel" name="maxPixelClockLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="3">
+          <widget class="QSlider" name="pixelClockHorizontalSlider">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="1" colspan="4">
+        <layout class="QGridLayout" name="gridLayout_10">
+         <item row="1" column="1" alignment="Qt::AlignHCenter">
+          <widget class="QLabel" name="curFrameRateLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="0" alignment="Qt::AlignLeft">
+          <widget class="QLabel" name="minFrameRateLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="2" alignment="Qt::AlignRight">
+          <widget class="QLabel" name="maxFrameRateLabel">
+           <property name="text">
+            <string>TextLabel</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="0" colspan="3">
+          <widget class="QSlider" name="frameRateHorizontalSlider">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="0" column="1" colspan="2">
+        <widget class="QSpinBox" name="focusingSpinBox">
+         <property name="maximum">
+          <number>10000</number>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="5">
+        <widget class="QGroupBox" name="triggerModeGroupBox">
+         <property name="title">
+          <string>Включить триггерный режим</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_14">
+          <item row="0" column="0" alignment="Qt::AlignHCenter">
+           <widget class="QRadioButton" name="highLowRadioButton">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>HIGH_LOW</string>
+            </property>
+            <property name="checked">
+             <bool>true</bool>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1" alignment="Qt::AlignHCenter">
+           <widget class="QRadioButton" name="lowHighRadioButton">
+            <property name="enabled">
+             <bool>true</bool>
+            </property>
+            <property name="text">
+             <string>LOW_HIGH</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_3">
+      <attribute name="title">
+       <string>Параметры картинки</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_6">
+       <property name="topMargin">
+        <number>15</number>
+       </property>
+       <item row="0" column="0">
+        <widget class="QGroupBox" name="pictureParamGroupBox">
+         <property name="title">
+          <string/>
+         </property>
+         <property name="flat">
+          <bool>false</bool>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_7">
+          <item row="14" column="1" colspan="2">
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <item>
+             <widget class="QLabel" name="label_29">
+              <property name="text">
+               <string>Коэф. маски</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="shadowCoefDoubleSpinBox"/>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_28">
+              <property name="text">
+               <string>Порог</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QDoubleSpinBox" name="shadowThresholdDoubleSpinBox"/>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_27">
+              <property name="text">
+               <string>Размер окна размытия</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="shadowGaussWindowSizeSpinBox"/>
+            </item>
+           </layout>
+          </item>
+          <item row="11" column="1">
+           <widget class="QSlider" name="saturationGHorizontalSlider">
+            <property name="minimum">
+             <number>-255</number>
+            </property>
+            <property name="maximum">
+             <number>255</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="0">
+           <widget class="QLabel" name="label_25">
+            <property name="text">
+             <string>Насыщение B</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="2">
+           <widget class="QLineEdit" name="gammaLineEdit">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>1</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0">
+           <widget class="QLabel" name="label_10">
+            <property name="text">
+             <string>Насыщение</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QCheckBox" name="equalizationCheckBox">
+            <property name="text">
+             <string/>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="0">
+           <widget class="QLabel" name="label_17">
+            <property name="text">
+             <string>Усиление</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="label_16">
+            <property name="text">
+             <string>Гамма</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_2">
+            <property name="text">
+             <string>Эквализация  гистограммы</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QSlider" name="saturationHorizontalSlider">
+            <property name="minimum">
+             <number>-255</number>
+            </property>
+            <property name="maximum">
+             <number>255</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
+           <widget class="QSlider" name="gammaSlider">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>1000</number>
+            </property>
+            <property name="value">
+             <number>100</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::NoTicks</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="2">
+           <widget class="QLineEdit" name="saturationRLineEdit">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="2">
+           <widget class="QLineEdit" name="saturationBLineEdit">
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="2">
+           <widget class="QLineEdit" name="saturationGLineEdit">
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="11" column="0">
+           <widget class="QLabel" name="label_23">
+            <property name="text">
+             <string>Насыщение G</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="1">
+           <widget class="QSlider" name="saturationRHorizontalSlider">
+            <property name="minimum">
+             <number>-255</number>
+            </property>
+            <property name="maximum">
+             <number>255</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="14" column="0">
+           <widget class="QLabel" name="label_26">
+            <property name="text">
+             <string>Подстветка теней</string>
+            </property>
+           </widget>
+          </item>
+          <item row="12" column="1">
+           <widget class="QSlider" name="saturationBHorizontalSlider">
+            <property name="minimum">
+             <number>-255</number>
+            </property>
+            <property name="maximum">
+             <number>255</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0">
+           <widget class="QLabel" name="label">
+            <property name="text">
+             <string>Насыщение R</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="wbLabel">
+            <property name="text">
+             <string>Баланс белого</string>
+            </property>
+           </widget>
+          </item>
+          <item row="15" column="0">
+           <widget class="QLabel" name="label_18">
+            <property name="text">
+             <string>Резкость</string>
+            </property>
+           </widget>
+          </item>
+          <item row="15" column="1">
+           <widget class="QSlider" name="sharpSlider">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>50</number>
+            </property>
+            <property name="pageStep">
+             <number>0</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::NoTicks</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="1">
+           <widget class="QSlider" name="gainSlider">
+            <property name="maximum">
+             <number>255</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+            <property name="tickPosition">
+             <enum>QSlider::NoTicks</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="15" column="2">
+           <widget class="QLineEdit" name="sharpLineEdit">
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="7" column="2">
+           <widget class="QLineEdit" name="gainLineEdit">
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="2">
+           <widget class="QLineEdit" name="saturationLineEdit">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="0">
+           <widget class="QLabel" name="label_30">
+            <property name="text">
+             <string>Тон</string>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="1">
+           <widget class="QSlider" name="hueHorizontalSlider">
+            <property name="minimum">
+             <number>-255</number>
+            </property>
+            <property name="maximum">
+             <number>255</number>
+            </property>
+            <property name="orientation">
+             <enum>Qt::Horizontal</enum>
+            </property>
+           </widget>
+          </item>
+          <item row="13" column="2">
+           <widget class="QLineEdit" name="hueLineEdit">
+            <property name="maximumSize">
+             <size>
+              <width>50</width>
+              <height>16777215</height>
+             </size>
+            </property>
+            <property name="text">
+             <string>0</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <layout class="QHBoxLayout" name="horizontalLayout_4">
+            <item>
+             <widget class="QCheckBox" name="whiteBalanceCheckBox">
+              <property name="text">
+               <string/>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QToolButton" name="chooseWBROIToolButton">
+              <property name="text">
+               <string>R</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QToolButton" name="showWBROIToolButton">
+              <property name="text">
+               <string>S</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_5">
+      <attribute name="title">
+       <string>Автоэкспозиция</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_11">
+       <item row="6" column="0">
+        <widget class="QLabel" name="label_22">
+         <property name="text">
+          <string>Включить автоэкспозицию:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_31">
+         <property name="text">
+          <string>Левая граница</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="2">
+        <widget class="QCheckBox" name="enableAutoExposureCheckBox">
+         <property name="text">
+          <string/>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_13">
+         <property name="text">
+          <string>Максимальное усиление</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="2">
+        <widget class="QLabel" name="label_14">
+         <property name="text">
+          <string>Процент зашкальных пикселей</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_12">
+         <property name="text">
+          <string>Минимальное усиление</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="1" colspan="2">
+        <widget class="QSpinBox" name="autoMaxGainSpinBox">
+         <property name="maximum">
+          <number>256</number>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="2">
+        <widget class="QDoubleSpinBox" name="autoPercentDoubleSpinBox">
+         <property name="maximum">
+          <double>100.000000000000000</double>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1" colspan="2">
+        <widget class="QSpinBox" name="autoMinGainSpinBox">
+         <property name="maximum">
+          <number>255</number>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <widget class="QLabel" name="label_24">
+         <property name="text">
+          <string>Режим</string>
+         </property>
+        </widget>
+       </item>
+       <item row="5" column="1" colspan="2">
+        <layout class="QHBoxLayout" name="horizontalLayout_2">
+         <item>
+          <widget class="QRadioButton" name="dayRadioButton">
+           <property name="text">
+            <string>День</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="eveningRadioButton">
+           <property name="text">
+            <string>Вечер</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="label_32">
+         <property name="text">
+          <string>Правая граница</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1" colspan="2">
+        <widget class="QDoubleSpinBox" name="autoRightBorderDoubleSpinBox"/>
+       </item>
+       <item row="2" column="1" colspan="2">
+        <widget class="QDoubleSpinBox" name="autoLeftBorderDoubleSpinBox"/>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_2">
+      <attribute name="title">
+       <string>Запросы</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_5">
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_7">
+         <property name="text">
+          <string>Номер порта для стрима</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="0" colspan="3">
+        <widget class="QGroupBox" name="groupBox_2">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
+         </property>
+         <property name="title">
+          <string>Запросить кадр</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_4">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_9">
+            <property name="text">
+             <string>Путь</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="framePathLineEdit"/>
+          </item>
+          <item row="0" column="2">
+           <widget class="QToolButton" name="chooseFramePathToolButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QPushButton" name="requestFramePushButton">
+            <property name="text">
+             <string>Запросить кадр</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="1" column="1">
+        <widget class="QSpinBox" name="streamPortSpinBox">
+         <property name="minimum">
+          <number>3000</number>
+         </property>
+         <property name="maximum">
+          <number>65500</number>
+         </property>
+         <property name="value">
+          <number>5000</number>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="0">
+        <widget class="QCheckBox" name="rawTcpStreamCheckBox">
+         <property name="text">
+          <string>Сырой TCP стрим</string>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0" colspan="3">
+        <widget class="QGroupBox" name="groupBox_3">
+         <property name="title">
+          <string>Запросить видео</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_3">
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_8">
+            <property name="text">
+             <string>Путь</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QLineEdit" name="videoPathLineEdit"/>
+          </item>
+          <item row="0" column="2">
+           <widget class="QToolButton" name="chooseVideoPathToolButton">
+            <property name="text">
+             <string>...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_11">
+            <property name="text">
+             <string>Длительность:</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <layout class="QHBoxLayout" name="horizontalLayout_8">
+            <item>
+             <widget class="QSpinBox" name="durationSpinBox">
+              <property name="minimum">
+               <number>1</number>
+              </property>
+              <property name="maximum">
+               <number>999999999</number>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="label_5">
+              <property name="text">
+               <string>секунд</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="compressCheckBox">
+              <property name="text">
+               <string>Сжимать</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="showVideoCheckBox">
+              <property name="text">
+               <string>Показывать</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QCheckBox" name="saveVideoCheckBox">
+              <property name="text">
+               <string>Сохранять</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="2" column="0" colspan="2">
+           <layout class="QGridLayout" name="gridLayout_16">
+            <item row="0" column="0">
+             <widget class="QPushButton" name="requestVideoPushButton">
+              <property name="text">
+               <string>Запросить видео</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QPushButton" name="startStreamPushButton">
+              <property name="text">
+               <string>Запросить стрим на экран</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QPushButton" name="checkSynchroPushButton">
+              <property name="text">
+               <string>Снять синхронное видео</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="2">
+             <widget class="QPushButton" name="stopStreamPushButton">
+              <property name="text">
+               <string>Остановить стрим</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QPushButton" name="checkSyncPushButton">
+              <property name="text">
+               <string>Проверить синхронизацию</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="2">
+             <widget class="QPushButton" name="restartCameraPushButton">
+              <property name="text">
+               <string>Перезапустить камеру</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QPushButton" name="syncFramePushButton">
+              <property name="text">
+               <string>Снять синхронный кадр</string>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </item>
+          <item row="3" column="0" colspan="2">
+           <widget class="QGroupBox" name="saveVideoIntervalGroupBox">
+            <property name="title">
+             <string>Сохранять видео каждые</string>
+            </property>
+            <property name="checkable">
+             <bool>false</bool>
+            </property>
+            <property name="checked">
+             <bool>false</bool>
+            </property>
+            <layout class="QGridLayout" name="gridLayout_13">
+             <item row="3" column="0" colspan="4">
+              <layout class="QHBoxLayout" name="horizontalLayout_9">
+               <item alignment="Qt::AlignHCenter">
+                <widget class="QRadioButton" name="turnOnAutoVideoSaveRadioButton">
+                 <property name="text">
+                  <string>Включить</string>
+                 </property>
+                </widget>
+               </item>
+               <item alignment="Qt::AlignHCenter">
+                <widget class="QRadioButton" name="turnOffAutoVideoSaveRadioButton">
+                 <property name="text">
+                  <string>Выключить</string>
+                 </property>
+                 <property name="checked">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="1" column="3">
+              <layout class="QHBoxLayout" name="horizontalLayout_10">
+               <item>
+                <widget class="QLabel" name="label_34">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>С</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QTimeEdit" name="fromTimeEdit">
+                 <property name="time">
+                  <time>
+                   <hour>12</hour>
+                   <minute>0</minute>
+                   <second>0</second>
+                  </time>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label_35">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Preferred">
+                   <horstretch>0</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="text">
+                  <string>до</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QTimeEdit" name="toTimeEdit">
+                 <property name="time">
+                  <time>
+                   <hour>23</hour>
+                   <minute>59</minute>
+                   <second>0</second>
+                  </time>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="1" column="0">
+              <widget class="QSpinBox" name="timerSpinBox">
+               <property name="minimum">
+                <number>1</number>
+               </property>
+               <property name="maximum">
+                <number>1440</number>
+               </property>
+              </widget>
+             </item>
+             <item row="1" column="1">
+              <widget class="QLabel" name="label_33">
+               <property name="text">
+                <string>минут</string>
+               </property>
+              </widget>
+             </item>
+             <item row="2" column="0" colspan="4">
+              <layout class="QHBoxLayout" name="horizontalLayout_11">
+               <item>
+                <widget class="QLabel" name="label_36">
+                 <property name="text">
+                  <string>Директория</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLineEdit" name="directoryLineEdit"/>
+               </item>
+               <item>
+                <widget class="QToolButton" name="chooseDirectoryToolButton">
+                 <property name="text">
+                  <string>...</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+            </layout>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_4">
+      <attribute name="title">
+       <string>Распознавание</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_12">
+       <item row="0" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_12">
+         <item>
+          <widget class="QCheckBox" name="enableRecognizeCheckBox">
+           <property name="text">
+            <string>Включить</string>
+           </property>
+           <property name="tristate">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_48">
+           <property name="text">
+            <string>Брать в распознавание каждый</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="ballRecognizeStepSpinBox">
+           <property name="minimum">
+            <number>1</number>
+           </property>
+           <property name="maximum">
+            <number>200</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label_49">
+           <property name="text">
+            <string>кадр</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="1" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_5">
+         <item>
+          <widget class="QLabel" name="mainROILabel">
+           <property name="text">
+            <string>Область интереса - первичный поиск</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="chooseMainROIPushButton">
+           <property name="text">
+            <string>Выбрать</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="showMainROIPushButton">
+           <property name="text">
+            <string>Показать</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="2" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_6">
+         <item>
+          <widget class="QLabel" name="firstROILabel">
+           <property name="text">
+            <string>Область интереса - бросок</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="chooseFirstROIPushButton">
+           <property name="text">
+            <string>Выбрать</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="showFirstROIPushButton">
+           <property name="text">
+            <string>Показать</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="3" column="0">
+        <layout class="QHBoxLayout" name="horizontalLayout_7">
+         <item>
+          <widget class="QLabel" name="secondROILabel">
+           <property name="text">
+            <string>Область интереса - удар</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="chooseSecondROIPushButton">
+           <property name="text">
+            <string>Выбрать</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="showSecondROIPushButton">
+           <property name="text">
+            <string>Показать</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item row="4" column="0">
+        <widget class="QGroupBox" name="groupBox">
+         <property name="title">
+          <string>Параметры</string>
+         </property>
+         <layout class="QGridLayout" name="gridLayout_15">
+          <item row="1" column="0">
+           <widget class="QLabel" name="label_38">
+            <property name="text">
+             <string>Кол-во СКО порога</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="5">
+           <widget class="QSpinBox" name="cannyMinSpinBox">
+            <property name="maximum">
+             <number>255</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="0">
+           <widget class="QLabel" name="label_37">
+            <property name="text">
+             <string>Порог коэф.корр</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="4">
+           <widget class="QLabel" name="label_44">
+            <property name="text">
+             <string>Кэнни порог макс.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="5" rowspan="2">
+           <widget class="QSpinBox" name="cannyMaxSpinBox">
+            <property name="maximum">
+             <number>255</number>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="0" rowspan="2">
+           <widget class="QLabel" name="label_39">
+            <property name="text">
+             <string>Размер зоны корр.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="2" column="1" rowspan="2">
+           <widget class="QSpinBox" name="searchAreaSizeSpinBox">
+            <property name="maximum">
+             <number>200</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="2">
+           <widget class="QLabel" name="label_42">
+            <property name="text">
+             <string>Мин.скорость</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="1">
+           <widget class="QDoubleSpinBox" name="corrDoubleSpinBox">
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="4">
+           <widget class="QLabel" name="label_43">
+            <property name="text">
+             <string>Кэнни порог мин.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="2">
+           <widget class="QLabel" name="label_40">
+            <property name="text">
+             <string>Мин. СКО мяча и фона</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="1">
+           <widget class="QSpinBox" name="skoCountSpinBox">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+          <item row="0" column="3">
+           <widget class="QDoubleSpinBox" name="minSkoTemplateDoubleSpinBox"/>
+          </item>
+          <item row="3" column="3">
+           <widget class="QDoubleSpinBox" name="minSpeedDoubleSpinBox"/>
+          </item>
+          <item row="1" column="2">
+           <widget class="QLabel" name="label_41">
+            <property name="text">
+             <string>Макс. угол между напр.</string>
+            </property>
+           </widget>
+          </item>
+          <item row="1" column="3">
+           <widget class="QDoubleSpinBox" name="maxAngleBetwDirDoubleSpinBox"/>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="label_45">
+            <property name="text">
+             <string>Мин. площадь мяча</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QSpinBox" name="minAreaSpinBox"/>
+          </item>
+          <item row="4" column="2">
+           <widget class="QLabel" name="label_46">
+            <property name="text">
+             <string>Макс.площадь мяча</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="3">
+           <widget class="QSpinBox" name="maxAreaSpinBox">
+            <property name="maximum">
+             <number>200</number>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="4">
+           <widget class="QLabel" name="label_47">
+            <property name="text">
+             <string>Коэф. циркулярности</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="5">
+           <widget class="QDoubleSpinBox" name="circularityDoubleSpinBox"/>
+          </item>
+          <item row="4" column="4">
+           <widget class="QCheckBox" name="debugRecFlagCheckBox">
+            <property name="text">
+             <string>Отладочный режим</string>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </widget>
+       </item>
+       <item row="5" column="0">
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_6">
+      <attribute name="title">
+       <string>Калибровка</string>
+      </attribute>
+      <layout class="QGridLayout" name="gridLayout_17">
+       <item row="0" column="0">
+        <widget class="QLabel" name="label_50">
+         <property name="text">
+          <string>Эталонный снимок</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="3">
+        <widget class="QPushButton" name="chooseReferenceFramePushButton">
+         <property name="text">
+          <string>Выбрать</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="2">
+        <spacer name="verticalSpacer_2">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item row="1" column="0">
+        <widget class="QLabel" name="label_51">
+         <property name="text">
+          <string>Список точек</string>
+         </property>
+        </widget>
+       </item>
+       <item row="1" column="2">
+        <widget class="QLineEdit" name="pointListLineEdit"/>
+       </item>
+       <item row="2" column="2">
+        <widget class="QSpinBox" name="patterWidthSpinBox"/>
+       </item>
+       <item row="1" column="3">
+        <widget class="QPushButton" name="choosePointsListPushButton">
+         <property name="text">
+          <string>Выбрать</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="2">
+        <widget class="QLineEdit" name="referenceFrameLineEdit"/>
+       </item>
+       <item row="2" column="0">
+        <widget class="QLabel" name="label_52">
+         <property name="text">
+          <string>Ширина паттерна</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="0">
+        <widget class="QLabel" name="label_53">
+         <property name="text">
+          <string>Исключить точки</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="1" colspan="2">
+        <widget class="QLineEdit" name="excludePointsLineEdit"/>
+       </item>
+       <item row="2" column="3">
+        <widget class="QPushButton" name="showPushButton">
+         <property name="text">
+          <string>Показать</string>
+         </property>
+        </widget>
+       </item>
+       <item row="4" column="3">
+        <widget class="QPushButton" name="calibratePushButton">
+         <property name="text">
+          <string>Откалибровать</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
