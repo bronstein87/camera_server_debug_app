@@ -11,8 +11,9 @@ Synchronizer::Synchronizer(qint32 port, QObject *parent) : QObject(parent)
 bool Synchronizer::connect(qint32 port)
 {
     QString error;
-    if (port != -1)
+    if (port != -1 && QSerialPortInfo::availablePorts().size() > 0)
     {
+
         syncHard.setPort(QSerialPortInfo::availablePorts().at(port));
         syncHard.setBaudRate(9600);
         if (syncHard.open(QIODevice::ReadWrite))
@@ -29,7 +30,7 @@ bool Synchronizer::connect(qint32 port)
     }
     else
     {
-        error = "Invalid port ";
+        error = "Invalid port or com ports not existss";
         qDebug() << error;
         emit errorOccured(error);
     }

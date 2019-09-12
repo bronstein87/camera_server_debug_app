@@ -625,7 +625,6 @@ public:
                 QVector  <double> R = MatrixMultyply(AT, unknowns, information.meas_counts * 2, A, information.meas_counts * 2, unknowns);
                 QVector <double> B = MatrixMultyply(AT, unknowns, information.meas_counts * 2, L, information.meas_counts * 2, 1);
                 LDLT_solver(R, B, unknowns, Solution);
-                qDebug() << "qq";
                 //========================================
                 for (int i = 0; i < information.image_counts; i++)
                 {

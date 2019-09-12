@@ -6,6 +6,7 @@ ServerOptionsWindow::ServerOptionsWindow(Synchronizer* snc, QWidget *parent) :
     ui(new Ui::ServerOptionsWindow)
 {
     ui->setupUi(this);
+
     setWindowFlags(Qt::WindowStaysOnTopHint);
     ui->statusLabel->setText("Выключен");
     ui->statusLabel->setStyleSheet("QLabel { background-color : red; }");
@@ -24,10 +25,12 @@ ServerOptionsWindow::ServerOptionsWindow(Synchronizer* snc, QWidget *parent) :
         ui->mainMonitorTextEdit->append(str);
 
     }
+    loadSettings();
 }
 
 ServerOptionsWindow::~ServerOptionsWindow()
 {
+    saveSettings();
     delete ui;
 }
 
@@ -48,7 +51,7 @@ void ServerOptionsWindow::on_synchroFirstCheckBox_clicked(bool checked)
     {
 
         if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst,
-                             ui->frameRateFirstSpinBox->value()))
+                              ui->frameRateFirstSpinBox->value()))
         {
             if (!sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1))
             {
@@ -56,7 +59,7 @@ void ServerOptionsWindow::on_synchroFirstCheckBox_clicked(bool checked)
             }
             else
             {
-                          qDebug() << "synchro first" << ui->frameRateFirstSpinBox->value();
+                qDebug() << "synchro first" << ui->frameRateFirstSpinBox->value();
                 previous = checked;
             }
         }
@@ -86,7 +89,7 @@ void ServerOptionsWindow::on_synchroSecondCheckBox_clicked(bool checked)
     if (checked && !previous)
     {
         if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateSecond,
-                             ui->frameRateSecondSpinBox->value()))
+                              ui->frameRateSecondSpinBox->value()))
         {
             if (!sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x2))
             {
@@ -211,11 +214,30 @@ void ServerOptionsWindow::on_allTurnOnCheckBox_clicked(bool checked)
 void ServerOptionsWindow::on_frameRateFirstSpinBox_editingFinished()
 {
     sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst,
-                                 ui->frameRateFirstSpinBox->value());
+                      ui->frameRateFirstSpinBox->value());
 }
 
 void ServerOptionsWindow::on_frameRateSecondSpinBox_editingFinished()
 {
     sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateSecond,
-                                 ui->frameRateSecondSpinBox->value());
+                      ui->frameRateSecondSpinBox->value());
+}
+
+void ServerOptionsWindow::loadSettings()
+{
+    QSettings settings;
+
+    ui->turnOnActivateCheckBox->setChecked(settings.value("enable_sync", false).toBool());
+    if (ui->turnOnActivateCheckBox->isChecked())
+    {
+        ui->portSpinBox->setValue(settings.value("com_port_num", 0).toInt());
+        on_turnOnSynchronizerPushButton_clicked();
+    }
+}
+
+void ServerOptionsWindow::saveSettings()
+{
+    QSettings settings;
+    settings.setValue("enable_sync", ui->turnOnActivateCheckBox->isChecked());
+    settings.setValue("com_port_num", ui->portSpinBox->value());
 }

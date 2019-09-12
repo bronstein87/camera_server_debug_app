@@ -1,3 +1,4 @@
+
 #include "ballapproximator.h"
 #include <math.h>
 BallApproximator::BallApproximator()
@@ -17,20 +18,19 @@ void BallApproximator::readInitData(const QString &path, double deltaT,bool writ
     if(writeToFile){
         fprintf(FLIST,"coordiates of cameras: c0 & c1\n");
     }
-    //fprintf(FLIST,"coordiates of cameras: c0 & c1\n");
     for (I=0; I<3; I++) //fprintf(FLIST,"%d %9.5f %9.5f\n",I,CAM0[I],CAM1[I]);
 
         if(writeToFile){
             fprintf(FLIST,"%d %9.5f %9.5f\n",I,CAM0[I],CAM1[I]);
             fprintf(FLIST,"\ndata from c0\n");
         }
-    //fprintf(FLIST,"\ndata from c0\n");
-    fscanf(FL,"%d",&N0);
+
 
     if(writeToFile){
+        fprintf(FLIST,"\ndata from c0\n");
         fprintf(FLIST,"%d\n",N0);
     }
-    // fprintf(FLIST,"%d\n",N0);
+
     for (I=0; I<N0; I++) fscanf(FL,"%lf %lf %lf",&U0[I][0],&U0[I][1],&U0[I][2]);
     for (I=0; I<N0; I++)
         if(writeToFile){
@@ -38,11 +38,8 @@ void BallApproximator::readInitData(const QString &path, double deltaT,bool writ
             fprintf(FLIST,"\ndata from c1\n");
             fprintf(FLIST,"%d\n",N1);
         }
-    // fprintf(FLIST,"%2d %11.7f %11.7f %11.7f\n",I,U0[I][0],U0[I][1],U0[I][2]);
 
-    //fprintf(FLIST,"\ndata from c1\n");
-    fscanf(FL,"%d",&N1);
-    //fprintf(FLIST,"%d\n",N1);
+    fprintf(FLIST,"\ndata from c1\n");
     for (I=0; I<N1; I++) fscanf(FL,"%lf %lf %lf",&U1[I][0],&U1[I][1],&U1[I][2]);
     for (I=0; I<N1; I++)
         if(writeToFile){
@@ -88,9 +85,6 @@ void BallApproximator::readData(QVector<Calibration::Position> f, QVector<Calibr
     fPosR = fPos;
     sPosR = sPos;
 
-
-    N0 = f.size();
-    N1 = s.size();
     CAM0[0] = fPos.X;
     CAM0[1] = fPos.Y;
     CAM0[2] = fPos.Z;
@@ -98,24 +92,42 @@ void BallApproximator::readData(QVector<Calibration::Position> f, QVector<Calibr
     CAM1[0] = sPos.X;
     CAM1[1] = sPos.Y;
     CAM1[2] = sPos.Z;
-    for (qint32 i = 0; i < f.size(); ++i)
+
+    N0 = 0;
+    N1 = 0;
+    qint32 i = 0;
+    qint32 j = 0;
+    while (i < f.size())
     {
-        U0[i][0] = f[i].X;
-        U0[i][1] = f[i].Y;
-        U0[i][2] = f[i].Z;
-        T0[i] = fTime[i];
+        if (fTime[i] > 0)
+        {
+            ++N0;
+            U0[j][0] = f[i].X;
+            U0[j][1] = f[i].Y;
+            U0[j][2] = f[i].Z;
+            T0[j] = fTime[i];
+            ++j;
+        }
+        ++i;
     }
 
-    for (qint32 i = 0; i < s.size(); ++i)
+    i = j = 0;
+    while (i < s.size())
     {
-        U1[i][0] = s[i].X;
-        U1[i][1] = s[i].Y;
-        U1[i][2] = s[i].Z;
-        T1[i] = sTime[i];
+        if (sTime[i] > 0)
+        {
+            ++N1;
+            U1[j][0] = s[i].X;
+            U1[j][1] = s[i].Y;
+            U1[j][2] = s[i].Z;
+            T1[j] = sTime[i];
+            ++j;
+        }
+        ++i;
     }
 
 
-    for (qint32 i = 0; i < f.size(); i++)
+    for (qint32 i = 0; i < N0; i++)
     {
 
         double lenght = 0;
@@ -132,7 +144,7 @@ void BallApproximator::readData(QVector<Calibration::Position> f, QVector<Calibr
         }
     }
 
-    for (qint32 i = 0; i < s.size(); i++)
+    for (qint32 i = 0; i < N1; i++)
     {
         double lenght = 0;
         for (qint32 j = 0; j < 3; j++)
@@ -147,21 +159,18 @@ void BallApproximator::readData(QVector<Calibration::Position> f, QVector<Calibr
             U1[i][j] /= lenght;
         }
     }
-    qDebug() << CAM0[0] << CAM0[1] << CAM0[2];
-    for (int i = 0; i < f.size(); ++i)
-    {
-        qDebug() << U0[i][0] << U0[i][1] << U0[i][2] << QString::number(T0[i],'g', 11);
-    }
-    qDebug() << "///////////";
-    qDebug() << CAM1[0] << CAM1[1] << CAM1[2];
-    for (int j = 0; j < s.size(); j++)
-    {
-        qDebug() << U1[j][0] << U1[j][1] << U1[j][2] << QString::number(T1[j],'g', 11);
-    }
+    //    for (int i = 0; i < N0; ++i)
+    //    {
+    //        qDebug() << U0[i][0] << U0[i][1] << U0[i][2] << QString::number(T0[i],'g', 11);
+    //    }
+    //    for (int j = 0; j < N1; j++)
+    //    {
+    //        qDebug() << U1[j][0] << U1[j][1] << U1[j][2] << QString::number(T1[j],'g', 11);
+    //    }
 
-    TIN=T0[N0-1];
-    if (T1[N1-1]<TIN) TIN=T1[N1-1];
-    fprintf(FLIST,"TIN= %11.7f\n",TIN);
+    TIN=T0[0];
+    if (T1[0]>TIN) TIN=T1[0];
+    //fprintf(FLIST,"TIN= %11.7f\n",TIN);
 }
 
 void BallApproximator::rotateMovementParameters(double pos[], double v[], double a[])
@@ -187,82 +196,165 @@ void BallApproximator::rotateMovementParameters(double pos[], double v[], double
     multMatrixVector(mRot, aTmp, a);
 }
 
-//void BallApproximator::calculateIntersect(double distFirst, double distSecond, double &t1, double &t2)
-//{
 
-//}
-
-
-
-
-void BallApproximator::DIST(double *U, double *V, double *POS, double *E)
+void BallApproximator::calculateIntercept(double plane[4], double pos[3], double v[3], double a[3],
+double &t1, double &t2, double coord1[3], double coord2[3])
 {
-    int I;
-    double UV,X,Y,P,Q,P0[3],P1[3];
+    double C,A,B,D;
+    C = ((plane[0] * pos[0]) + (plane[1] * pos[1]) + (plane[2] * pos[2])) + plane[3];
+    B = (plane[0] * v[0]) + (plane[1] * v[1]) + (plane[2] * v[2]);
+    A = ((plane[0] * a[0]) ) + ((plane[1] * a[1]) ) + ((plane[2] * a[2]));
+    D = sqrt((B * B) - 4 * A * C);
+    if (((B * B) - (4 * A * C)) >= 0)
+    {
 
-    UV=0; X=0; Y=0;
-    for (I=0; I<3; I++) {
-        UV+=U[I]*V[I]; X+=DC[I]*U[I]; Y+=DC[I]*V[I];
+        t1 = (- B + D) / (2 * A);
+        t2 = (- B - D) / (2 * A);
+
+
+        coord1[0] = pos[0] + v[0] * (t1) + ((a[0] * t1 * t1));
+        coord1[1] = pos[1] + v[1] * (t1) + ((a[1] * (t1) * (t1)));
+        coord1[2] = pos[2] + v[2] * (t1) + ((a[2] * (t1) * (t1)));
+
+
+        coord2[0] = pos[0] + v[0] * (t2) + ((a[0] * (t2) * (t2)));
+        coord2[1] = pos[1] + v[1] * (t2) + ((a[1] * (t2) * (t2)));
+        coord2[2] = pos[2] + v[2] * (t2) + ((a[2] * (t2) * (t2)));
     }
-    P=(X-UV*Y)/(1-UV*UV); Q=-(Y-UV*X)/(1-UV*UV);
-    Y=0;
-    for (I=0; I<3; I++) {
-        P0[I]=CAM0[I]+P*U[I]; P1[I]=CAM1[I]+Q*V[I];
-        POS[I]=0.5*(P0[I]+P1[I]); X=P0[I]-P1[I]; Y+=X*X;
+    else
+    {
+        t1 = -1;
+        t2 = -1;
+
     }
-    *E=sqrt(Y);
+
+}
+
+bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
+                                                  double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
+                                                  double& xBegin, double rot[3], double & W)
+{
+    double pos[3], v[3], a[3];
+    rotateMovementParameters(pos, v , a);
+    for (qint32 i = 0; i < 3; ++i)
+    {
+        a[i] *= 2;
+    }
+    double t1, t2;
+    double yBegin = 16.55;
+    bool strike = false;
+    double widthInit = 0;
+    const double closeZoneY = 0;
+    const double farZoneY = 0.43;
+    const double width = 0.215;
+    const double minHeight = 0.473;
+    const double maxHeight= 1.075;
+    const double offset = 0.03;
+
+    solveQuadratic(a[1] / 2, v[1], pos[1] - yBegin, t1, t2);
+
+    xBegin = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
+    zBegin = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
+    double vyBegin = v[1] + a[1] * t2;
+    double vxBegin = v[0] + a[0] * t2;
+    double vzBegin = v[2] + a[2] * t2;
+    tBegin = t2;
+    vBegin = sqrt(vxBegin * vxBegin + vyBegin * vyBegin + vzBegin * vzBegin);
+
+    double yEnd = 0;
+    solveQuadratic(a[1] / 2, v[1], pos[1] - closeZoneY, t1, t2);
+    double xEnd = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
+    double zEnd = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
+    double vyEnd = v[1] + a[1]  * t2;
+    double vxEnd = v[0] + a[0]  * t2;
+    double vzEnd = v[2] + a[2]  * t2;
+    tEnd = t2;
+    vEnd = sqrt(vxEnd * vxEnd + vyEnd * vyEnd + vzEnd * vzEnd);
+
+    if (xEnd <= width + widthInit + offset && xEnd >= widthInit - width - offset
+            && zEnd >= minHeight - offset && zEnd <= maxHeight + offset)
+    {
+        strike = true;
+    }
+
+    solveQuadratic(a[1] / 2, v[1], pos[1] - farZoneY, t1, t2);
+    double xFarEnd = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
+    double zFarEnd = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
+    if (xFarEnd <= width + widthInit + offset && xFarEnd >= widthInit - width - offset
+            && zFarEnd >= minHeight - offset && zFarEnd <= maxHeight + offset)
+    {
+        strike = true;
+    }
+
+    double vxMag = (vxBegin + vxEnd) / 2;
+    double vyMag = (vyBegin + vyEnd) / 2;
+    double vzMag = (vzBegin + vzEnd) / 2;
+    double vMag = (vBegin + vEnd) / 2;
+    T = tEnd - tBegin;
+
+    const double g = 9.8066;
+    double axMag = a[0] - a[1] * vxMag/vyMag;
+    double azMag = a[2] + g - a[1] * vzMag / vyMag;
+    double deltaAx = a[0] - axMag;
+    double deltaAy = a[1] + axMag * (vxMag/vyMag) + azMag * (vzMag / vyMag);
+    double deltaAz = a[2] + g - azMag;
+
+    double axNoRot = a[0] - axMag;
+    double azNoRot = a[2] - azMag;
+
+    double xNoRot = xBegin + vxBegin * (tEnd - tBegin) + axNoRot * pow(tEnd - tBegin, 2) / 2;
+    double zNoRot = zBegin + vzBegin * (tEnd - tBegin) + azNoRot * pow(tEnd - tBegin, 2) / 2;
+
+    dxNoRot = xEnd - xNoRot;
+    dzNoRot = zEnd - zNoRot;
+
+    double r = 7.3 / 100 / 2.0;
+    double A = 3.14 * r * r;
+    double rho = 1.225;
+    double m = 0.143;
+    double K = 1.0 / 2.0 * rho * A / m;
+    double CD = sqrt(deltaAz * deltaAz  + deltaAy * deltaAy + deltaAz * deltaAz) / (K * vyMag * vMag);
+    double CL = sqrt(axMag * axMag + azMag * azMag) / (K * vMag * vMag);
+    double S = -(583.0 * CL) / (2333.0 * CL - 1120.0);
+    double metersToMiles =  3.6 / 1.609;
+    W = (S / 8.56e-3) * vMag * metersToMiles;
+    for (qint32 i = 0; i < 3; ++i)
+    {
+        a[i] /= 2;
+    }
+
+    double mInit[3][3] {{1, 0 , 0}, {0, 1, 0}, {0, 0, 1}};
+    double mRot[3][3];
+    double pNoRot[3] {xNoRot, 0, zNoRot};
+    BOKZMath::rotateOZ(-45.0 * BOKZMath::degreesToRad, mInit, mRot);
+    multMatrixVector(mRot, pNoRot, rot);
+    return strike;
+}
+
+void BallApproximator::solveQuadratic(double a, double b, double c, double& x1, double& x2)
+{
+    double discriminant, realPart, imaginaryPart;
+    discriminant = b*b - 4*a*c;
+
+    if (discriminant > 0) {
+        x1 = (-b + sqrt(discriminant)) / (2*a);
+        x2 = (-b - sqrt(discriminant)) / (2*a);
+    }
+
+    else if (discriminant == 0) {
+        x1 = (-b + sqrt(discriminant)) / (2*a);
+    }
+    else {
+        realPart = -b/(2*a);
+        imaginaryPart =sqrt(-discriminant)/(2*a);
+    }
 }
 
 
 
-//void BallApproximator::PARAB(int K, double *T, double *X, double *RVW, double *E)
-//{
-//    int I;
-//    double S0,S1,S2,S3,S4,Y0,Y1,Y2,A,B,D,A0,A1,A2,L0,L1,L2,L3,L4,L5;
 
-//    S0=K; S1=0; S2=0; S3=0; S4=0; A0=0; A1=0; A2=0;
-//    for (I=0; I<K; I++) {
-//        A=T[I] - TIN; B=X[I]; D=A*A; S1+=A; S2+=D; S3+=A*D; S4+=D*D;
-//        A0+=B; A1+=A*B; A2+=B*D;
-//    }
-//    L0=sqrt(S0); L1=S1/L0; L2=S2/L0;
-//    L3=sqrt(S2-L1*L1); L4=(S3-L1*L2)/L3; L5=sqrt(S4-L2*L2-L4*L4);
-//    Y0=A0/L0; Y1=(A1-L1*Y0)/L3; Y2=(A2-L2*Y0-L4*Y1)/L5;
-//    A2=Y2/L5; A1=(Y1-L4*A2)/L3; A0=(Y0-L1*A1-L2*A2)/L0;
-//    B=0;
-//    for (I=0; I<K; I++) {A=X[I]-A0-T[I]*(A1+T[I]*A2); B+=A*A;}
-//    *E=sqrt(B/(K-3));
-//    RVW[0]=A0; RVW[1]=A1; RVW[2]=A2;
-//}
 
-void BallApproximator::PARAB(int K, double *T, double *X, double *RVW, double *E)
-{
-    int I;
-    double S0,S1,S2,S3,S4,Y0,Y1,Y2,A,B,D,A0,A1,A2,L0,L1,L2,L3,L4,L5;
 
-    for (I=0; I<K; I++) fprintf(FLIST,"%2d  %12.6f  %12.6f\n",I,T[I],X[I]);
-    //getchar();
-    S0=K; S1=0; S2=0; S3=0; S4=0; A0=0; A1=0; A2=0;
-    for (I=0; I<K; I++) {
-        A=T[I]-TIN; B=X[I]; D=A*A; S1+=A; S2+=D; S3+=A*D; S4+=D*D;
-        A0+=B; A1+=A*B; A2+=B*D;
-    }
-    L0=sqrt(S0); L1=S1/L0; L2=S2/L0;
-    L3=sqrt(S2-L1*L1); L4=(S3-L1*L2)/L3; L5=sqrt(S4-L2*L2-L4*L4);
-    Y0=A0/L0; Y1=(A1-L1*Y0)/L3; Y2=(A2-L2*Y0-L4*Y1)/L5;
-    A2=Y2/L5; A1=(Y1-L4*A2)/L3; A0=(Y0-L1*A1-L2*A2)/L0;
-    B=0;
-    for (I=0; I<K; I++) {
-        D=T[I]-TIN; A=X[I]-A0-D*(A1+D*A2); B+=A*A;
-    }
-    *E=sqrt(B/(K-3)); RVW[0]=A0; RVW[1]=A1; RVW[2]=A2;
-    fprintf(FLIST,"x,vx,ax/2,rms: %12.5e %12.5e %12.5e %10.3e\n",A0,A1,A2,*E);
-    for (I=0; I<K; I++) {
-        D=T[I]-TIN; S0=A0+D*(A1+D*A2); S1=A1+2*A2*D;
-        fprintf(FLIST,"%2d  %12.5f  %12.5e  %12.5e  %12.5e\n",I,D,S0,S1,X[I]-S0);
-    }
-    //getchar();
-}
 
 
 
@@ -513,58 +605,6 @@ int BallApproximator::CHOLINV2(int N, double *A)
     return 1;
 }
 
-//void BallApproximator::NORMEQ(double *X, double (*Z)[nonLinearParamsCount], double (*V)[1], double *F)
-//{
-//    double A[3][nonLinearParamsCount],P[3] ,S,RB, DT;
-//    int I,J,K,L;
-
-//    *F=0;
-//    for (I=0; I<nonLinearParamsCount; I++) {
-//        V[I][0]=0; for (J=I; J<nonLinearParamsCount; J++) Z[I][J]=0;
-//    }
-
-//    for (I=0; I<N0; I++) {
-//        S=0;DT=T0[I]-TIN;
-//        for (J=0; J<3; J++) {
-//            P[J]=X[J]+T0[I]*(X[J+3]+T0[I]*X[J+6])-CAM0[J];
-//            S+=P[J]*P[J];
-//        }
-//        S=sqrt(S);
-//        for (J=0; J<3; J++) {P[J]/=S; RB=U0[I][J]-P[J]; *F+=RB*RB;}
-//        for (J=0; J<3; J++) for (K=J; K<3; K++) {
-//            A[J][K]=-P[J]*P[K]/S; if (K==J) A[J][J]+=1/S; else A[K][J]=A[J][K];
-//        }
-//        for (J=0; J<3; J++) for (K=0; K<3; K++) {
-//            A[J][K+3]=T0[I]*A[J][K]; A[J][K+6]=T0[I]*A[J][K+3];
-//        }
-//        for (J=0; J<nonLinearParamsCount; J++) {
-//            for (L=0; L<3; L++) V[J][0]+=A[L][J]*(U0[I][L]-P[L]);
-//            for (K=J; K<nonLinearParamsCount; K++) for (L=0; L<3; L++) Z[J][K]+=A[L][J]*A[L][K];
-//        }
-//    }
-
-//    for (I=0; I<N1; I++) {
-//        S=0;DT=T1[I]-TIN;
-//        for (J=0; J<3; J++) {
-//            P[J]=X[J]+T1[I]*(X[J+3]+T1[I]*X[J+6])-CAM1[J];
-//            S+=P[J]*P[J];
-//        }
-//        S=sqrt(S);
-//        for (J=0; J<3; J++) {P[J]/=S; RB=U1[I][J]-P[J]; *F+=RB*RB;}
-//        for (J=0; J<3; J++) for (K=J; K<3; K++) {
-//            A[J][K]=-P[J]*P[K]/S; if (K==J) A[J][J]+=1/S; else A[K][J]=A[J][K];
-//        }
-//        for (J=0; J<3; J++) for (K=0; K<3; K++) {
-//            A[J][K+3]=T1[I]*A[J][K]; A[J][K+6]=T1[I]*A[J][K+3];
-//        }
-//        for (J=0; J<nonLinearParamsCount; J++) {
-//            for (L=0; L<3; L++) V[J][0]+=A[L][J]*(U1[I][L]-P[L]);
-//            for (K=J; K<nonLinearParamsCount; K++) for (L=0; L<3; L++) Z[J][K]+=A[L][J]*A[L][K];
-//        }
-//    }
-
-//}
-
 
 
 
@@ -682,7 +722,6 @@ void BallApproximator::SOLVER(double *X,bool writeToFile)
             if(writeToFile){
                 printf("RES=0\n");
             }
-            getchar();
             return;
         }
     } while (W>EPSI);
@@ -847,53 +886,41 @@ void BallApproximator::COVMAT(int NPAR, int NDIV, double *X,bool writeToFile)
 }
 
 
-void BallApproximator::FIRST()
-{
-    double TB,TF,Y[maxNumberOfMeasures],P[3],E;
-    int I,J;
 
-    TB=T0[0]; if(TB<T1[0]) TB=T1[0];
-    TF=T0[N0-1]; if(TF>T1[N1-1])TF=T1[N1-1];
-    E=(TF-TB)/(fisrtMeasureCount-1);
-    for (I=0; I<fisrtMeasureCount; I++) timeSame[I]=TB+E*I;
-
-    for (J=0; J<3; J++) {
-        for (I=0; I<N0; I++) Y[I]=U0[I][J];
-        PARAB(N0,T0,Y,P,&E);
-        for (I=0; I<fisrtMeasureCount; I++) U0[I][J]=P[0]+(timeSame[I]-TIN)*(P[1]+(timeSame[I]-TIN)*P[2]);
-        for (I=0; I<N1; I++) Y[I]=U1[I][J];
-        PARAB(N1,T1,Y,P,&E);
-        for (I=0; I<fisrtMeasureCount; I++) U1[I][J]=P[0]+(timeSame[I]-TIN)*(P[1]+(timeSame[I]-TIN)*P[2]);
-    }
-
-    for (I=0; I<fisrtMeasureCount; I++) {
-        E=0;
-        for (J=0; J<3; J++) E+=U0[I][J]*U0[I][J];
-        E=sqrt(E);
-        for (J=0; J<3; J++) U0[I][J]/=E;
-    }
-    for (I=0; I<fisrtMeasureCount; I++) {
-        E=0;
-        for (J=0; J<3; J++) E+=U1[I][J]*U1[I][J];
-        E=sqrt(E);
-        for (J=0; J<3; J++) U1[I][J]/=E;
-    }
-}
 
 void BallApproximator::calculateApproximation(const QString &resultPath, bool writeToFile)
 {
     if (writeToFile)
     {
-        FLIST=fopen(resultPath.toStdString().c_str(), "w");
+        FLIST = fopen(resultPath.toStdString().c_str(), "w");
     }
 
-    double lenght;
     int I,J;
-    double P[3], X[nonLinearParamsCount], PQ[3][maxNumberOfMeasures], timeSame[maxNumberOfMeasures];
+    for (I=0; I<3; I++)
+        if(writeToFile){
+            fprintf(FLIST,"%d %9.5f %9.5f\n",I,CAM0[I],CAM1[I]);
+        }
+    fprintf(FLIST,"\ndata from c0\n");
 
-    for (J=0; J<3; J++) DC[J]=CAM1[J]-CAM0[J];
-    fisrtMeasureCount=N0; if (fisrtMeasureCount>N1) fisrtMeasureCount=N1;
+    for (I=0; I<N0; I++)
+        if(writeToFile){
+            fprintf(FLIST,"%2d %6.4f %11.7f %11.7f %11.7f\n",I, T0[I], U0[I][0],U0[I][1],U0[I][2]);
+        }
+
+    fprintf(FLIST,"\ndata from c1\n");
+    for (I=0; I<N1; I++)
+        if(writeToFile){
+            fprintf(FLIST,"%2d %6.4f %11.7f %11.7f %11.7f\n",I,T1[I],U1[I][0],U1[I][1],U1[I][2]);
+        }
+
+    double lenght;
+
+    double P[3], X[nonLinearParamsCount], PQ[3][maxNumberOfMeasures];
     FIRST();
+    for (J=0; J<3; J++)
+    {
+        DC[J]=CAM1[J]-CAM0[J];
+    }
     if (writeToFile)
     {
         fprintf(FLIST,"\ngeometry estimatuions: t, x,y,z, error \n");
@@ -904,17 +931,15 @@ void BallApproximator::calculateApproximation(const QString &resultPath, bool wr
         if(writeToFile){
             fprintf(FLIST,"%2d  %6.4f  %12.5e %12.5e %12.5e  %10.3e\n",I,T0[I],P[0],P[1],P[2],lenght);
         }
-        //fprintf(FLIST,"%2d  %6.4f  %12.5e %12.5e %12.5e  %10.3e\n",I,T0[I],P[0],P[1],P[2],lenght);
         for (J=0; J<3; J++) PQ[J][I]=P[J];
-        timeSame[I]=0.5*(T0[I]+T1[I]);
+        //timeSame[I]=0.5*(T0[I]+T1[I]);
     }
     if(writeToFile){
-
         fprintf(FLIST,"\nlinear estimations: X[9]=(x,vx,ax/2,y,..,az/2)\n");
 
     }
     //fprintf(FLIST,"\nlinear estimations: X[9]=(x,vx,ax/2,y,..,az/2)\n");
-    PARAB(fisrtMeasureCount,timeSame,PQ[0],P,&lenght);
+    PARAB(fisrtMeasureCount, timeSame, PQ[0],P,&lenght);
     if(writeToFile){
 
         fprintf(FLIST,"x,vx,ax/2,rms: %12.5e %12.5e %12.5e %10.3e\n",P[0],P[1],P[2],lenght);
@@ -925,7 +950,7 @@ void BallApproximator::calculateApproximation(const QString &resultPath, bool wr
     xLinearParams[1] = P[1];
     xLinearParams[2] = P[2];
     X[0]=P[0]; X[3]=P[1]; X[6]=P[2];
-    PARAB(fisrtMeasureCount,timeSame,PQ[1],P,&lenght);
+    PARAB(fisrtMeasureCount, timeSame, PQ[1],P , &lenght);
     if(writeToFile){
 
         fprintf(FLIST,"y,vy,ay/2,rms: %12.5e %12.5e %12.5e %10.3e\n",P[0],P[1],P[2],lenght);
@@ -957,10 +982,15 @@ void BallApproximator::calculateApproximation(const QString &resultPath, bool wr
     readData(fR, sR, fTimeR, sTimeR, fPosR, sPosR);
     //fprintf(FLIST,"\nnonlinear estimatuions: t, x,y,z, error \n");
 
-    SOLVER(X,writeToFile);
-    COVMAT(nonLinearParamsCount, 2 * N0 + 2 * N1 - nonLinearParamsCount, X,writeToFile);
+    SOLVER(X, writeToFile);
+    COVMAT(nonLinearParamsCount, 3 * (N0 + N1) - nonLinearParamsCount, X,writeToFile);
+
+    //NEWT(X);
+    ERRORS(X);
+    PROGN(X);
 
     fclose(FLIST);
+    FLIST = nullptr;
 }
 
 
@@ -995,36 +1025,459 @@ void Check(double x,double y, double z,double x1,double y1,double z1, double ax,
 
 }
 
-
-void calculateIntercept(double plane[4], double pos[3], double v[3], double a[3],
-           double &t1, double &t2, double coord1[3], double coord2[3])
+void BallApproximator::DIST(double *U, double *V, double *POS, double *E)
 {
-//    double C,A,B,D;
-//    C = ((plane[0] * pos[0]) + (plane[1] * pos[1]) + (plane[2] * pos[2])) + plane[3];
-//    B = (plane[0] * v[0]) + (plane[1] * v[1]) + (plane[2] * v[2]);
-//    A = ((plane[0] * a[0]) ) + ((plane[1] * a[1]) ) + ((plane[2] * a[2]));
-//    D = sqrt((B * B) - 4 * A * C);
-//    if (((B * B) - (4 * A * C)) >= 0)
-//    {
+    int I;
+    double UV,X,Y,P,Q,P0[3],P1[3];
 
-//        t1 = (- B + D) / (2 * A);
-//        t2 = (- B - D) / (2 * A);
+    UV=0; X=0; Y=0;
+    for (I=0; I<3; I++) {
+        UV+=U[I]*V[I]; X+=DC[I]*U[I]; Y+=DC[I]*V[I];
+    }
+    P=(X-UV*Y)/(1-UV*UV); Q=-(Y-UV*X)/(1-UV*UV);
+    Y=0;
+    for (I=0; I<3; I++) {
+        P0[I]=CAM0[I]+P*U[I]; P1[I]=CAM1[I]+Q*V[I];
+        POS[I]=0.5*(P0[I]+P1[I]); X=P0[I]-P1[I]; Y+=X*X;
+    }
+    *E=sqrt(Y);
+}
 
 
-//        coord1[0] = x + vx * (t1) + ((ax * t1 * t1));
-//        coord1[1] = y + vy * (t1) + ((ay * (t1) * (t1)));
-//        coord1[2] = z + vz * (t1) + ((az * (t1) * (t1)));
+
+void BallApproximator::PARAB(int K, double *T, double *X, double *RVW, double *E)
+{
+    int I;
+    double S0,S1,S2,S3,S4,Y0,Y1,Y2,A,B,D,A0,A1,A2,L0,L1,L2,L3,L4,L5;
+    S0=K; S1=0; S2=0; S3=0; S4=0; A0=0; A1=0; A2=0;
+    for (I=0; I<K; I++) {
+        A=T[I]-TIN; B=X[I]; D=A*A; S1+=A; S2+=D; S3+=A*D; S4+=D*D;
+        A0+=B; A1+=A*B; A2+=B*D;
+    }
+    L0=sqrt(S0); L1=S1/L0; L2=S2/L0;
+    L3=sqrt(S2-L1*L1); L4=(S3-L1*L2)/L3; L5=sqrt(S4-L2*L2-L4*L4);
+    Y0=A0/L0; Y1=(A1-L1*Y0)/L3; Y2=(A2-L2*Y0-L4*Y1)/L5;
+    A2=Y2/L5; A1=(Y1-L4*A2)/L3; A0=(Y0-L1*A1-L2*A2)/L0;
+    B=0;
+    for (I=0; I<K; I++) {
+        D=T[I]-TIN; A=X[I]-A0-D*(A1+D*A2); B+=A*A;
+    }
+    *E=sqrt(B/(K-3)); RVW[0]=A0; RVW[1]=A1; RVW[2]=A2;
+}
 
 
-//        coord2[0] = x + vx * (t2) + ((ax * (t2) * (t2)));
-//        coord2[1] = y + vy * (t2) + ((ay * (t2) * (t2)));
-//        coord2[2] = z + vz * (t2) + ((az * (t2) * (t2)));}
-//    else
-//    {
-//        t1=-1;
-//        t2=-1;
 
-//    }
+void BallApproximator::SYST(double *X, double (*B)[nonLinearParamsCountPlus])
+{
+    double A[3][3],P[3],S,DT,DT2;
+    int I,J,K;
+
+    for (I=0; I<N0; I++) {
+        S=0; DT=T0[I]-TIN; DT2=DT*DT;
+        for (J=0; J<3; J++) {
+            P[J]=X[J]+DT*X[J+3]+DT2*X[J+6]-CAM0[J]; S+=P[J]*P[J];
+        }
+        S=sqrt(S);
+        for (J=0; J<3; J++) {
+            P[J]/=S; B[3*I+J][9]=U0[I][J]-P[J];
+        }
+        for (J=0; J<3; J++) for (K=J; K<3; K++) {
+            A[J][K]=-P[J]*P[K]/S; if (K==J) A[J][J]+=1/S; else A[K][J]=A[J][K];
+        }
+        for (J=0; J<3; J++) for (K=0; K<3; K++) {
+            B[3*I+J][K]=A[J][K]; B[3*I+J][K+3]=DT*A[J][K];
+            B[3*I+J][K+6]=DT2*A[J][K];
+        }
+    }
+
+    for (I=0; I<N1; I++) {
+        S=0; DT=T1[I]-TIN; DT2=DT*DT;
+        for (J=0; J<3; J++) {
+            P[J]=X[J]+DT*X[J+3]+DT2*X[J+6]-CAM1[J]; S+=P[J]*P[J];
+        }
+        S=sqrt(S);
+        for (J=0; J<3; J++) {
+            P[J]/=S; B[3*(I+N0)+J][9]=U1[I][J]-P[J];
+        }
+        for (J=0; J<3; J++) for (K=J; K<3; K++) {
+            A[J][K]=-P[J]*P[K]/S; if (K==J) A[J][J]+=1/S; else A[K][J]=A[J][K];
+        }
+        for (J=0; J<3; J++) for (K=0; K<3; K++) {
+            B[3*(N0+I)+J][K]=A[J][K]; B[3*(N0+I)+J][K+3]=DT*A[J][K];
+            B[3*(N0+I)+J][K+6]=DT2*A[J][K];
+        }
+    }
 
 }
+
+void BallApproximator::NEWT(double *X)
+{
+    double POR=0,EPSI=1e-10,W,NEV,
+            Q[nonLinearParamsCount],
+            E[nonLinearParamsCount],
+            AX[3*maxNumberOfMeasures][nonLinearParamsCountPlus];
+    int NN,I,J;
+
+    NN=0;
+    do {
+        NN=NN+1;
+        SYST(X,AX);
+        NEV=0;
+        for (I=0; I<3*(N0+N1); I++) NEV+=AX[I][nonLinearParamsCount]*AX[I][nonLinearParamsCount];
+        NEV=sqrt(NEV);
+        MINFIT(3*(N0+N1),nonLinearParamsCount,1,1e-16,1e-30,AX,Q);
+        //-----------------------------------------------------------------
+        printf("singular values\n");
+        fprintf(FLIST,"singular values\n");
+        for (I=0; I<nonLinearParamsCount; I++) printf("%14.7e\n",Q[I]);
+        for (I=0; I<nonLinearParamsCount; I++) fprintf(FLIST,"%14.7e\n",Q[I]);
+        fprintf(FLIST,"\n");
+        // -----------------------------------------------------------------
+        for (I=0; I<nonLinearParamsCount; I++) if (Q[I]>POR) E[I]=AX[I][nonLinearParamsCount]/Q[I]; else E[I]=0;
+        for (I=0; I<nonLinearParamsCount; I++) {
+            Q[I]=0; for (J=0; J<3; J++) Q[I]+=AX[I][J]*E[J];
+        }
+        W=0;
+        for (I=0; I<nonLinearParamsCount; I++) {W+=Q[I]*Q[I]; X[I]+=Q[I];}
+        W=sqrt(W);
+        printf("N=%2d step=%14.7e nev=%14.7e\n",NN,W,NEV);
+        fprintf(FLIST,"N=%2d step=%14.7e nev=%14.7e\n",NN,W,NEV);
+        for (I=0; I<nonLinearParamsCount; I++) printf("X[%d]=%17.10e;\n",I,X[I]);
+        printf("\n");
+        for (I=0; I<nonLinearParamsCount; I++) fprintf(FLIST,"X[%d]=%17.10e;\n",I,X[I]);
+        fprintf(FLIST,"\n");
+    } while (W>EPSI);
+
+    xNonLinearParams[0] = X[0];
+    xNonLinearParams[1] = X[3];
+    xNonLinearParams[2] = X[6];
+    yNonLinearParams[0] = X[1];
+    yNonLinearParams[1] = X[4];
+    yNonLinearParams[2] = X[7];
+    zNonLinearParams[0] = X[2];
+    zNonLinearParams[1] = X[5];
+    zNonLinearParams[2] = X[8];
+
+}
+
+void BallApproximator::ERRORS(double *X)
+{
+    double W,Q[nonLinearParamsCount],E[nonLinearParamsCount],
+            A[nonLinearParamsCount][nonLinearParamsCount],
+            B[nonLinearParamsCount][nonLinearParamsCount],
+            AX[3*maxNumberOfMeasures][nonLinearParamsCountPlus];
+    double P[3],S,R,DT,DT2;
+    int I,J,K;
+
+    SYST(X,AX);
+    W=0;
+    for (I=0; I<3*(N0+N1); I++) W+=AX[I][nonLinearParamsCount]*AX[I][nonLinearParamsCount];
+    fprintf(FLIST,"FCRIT %14.7e",W);
+    W=sqrt(W/(3*(N0+N1)-nonLinearParamsCount));
+    printf("SIGMA(rad.) %12.5e\n",W);
+    fprintf(FLIST,"  SIGMA(rad.) %14.7e\n\n",W);
+    errorsFirst.clear();
+    fprintf(FLIST,"residues in ort of c0: du[0..2],   distance,     estimate dr\n");
+    for (I=0; I<N0; I++) {
+        fprintf(FLIST,"%10.7f %10.7f %10.7f",AX[3*I][nonLinearParamsCount],AX[3*I+1][nonLinearParamsCount],AX[3*I+2][nonLinearParamsCount]);
+
+        R=0; DT=T0[I]-TIN; DT2=DT*DT;
+        for (J=0; J<3; J++) {
+            P[J]=X[J]+DT*X[J+3]+DT2*X[J+6]-CAM0[J]; R+=P[J]*P[J];
+        }
+        R=sqrt(R);
+        S=0; for (J=0; J<3; J++) S+=AX[3*I+J][nonLinearParamsCount]*AX[3*I+J][nonLinearParamsCount];
+        S=sqrt(S);
+        fprintf(FLIST,"   %10.7f   %10.7f\n",R,R*S);
+        errorsFirst.append(R * S);
+    }
+
+    fprintf(FLIST,"\n");
+    errorsSecond.clear();
+    fprintf(FLIST,"residues in ort of c1: du[0..2],   distance,     estimate dr\n");
+    for (I=0; I<N1; I++) {
+        fprintf(FLIST,"%10.7f %10.7f %10.7f",AX[3*(I+N0)][nonLinearParamsCount],AX[3*(I+N0)+1][nonLinearParamsCount],AX[3*(I+N0)+2][nonLinearParamsCount]);
+
+        R=0; DT=T1[I]-TIN; DT2=DT*DT;
+        for (J=0; J<3; J++) {
+            P[J]=X[J]+DT*X[J+3]+DT2*X[J+6]-CAM1[J]; R+=P[J]*P[J];
+        }
+        R=sqrt(R);
+        S=0; for (J=0; J<3; J++) S+=AX[3*(I+N0)+J][nonLinearParamsCount]*AX[3*(I+N0)+J][nonLinearParamsCount];
+        S=sqrt(S);
+        fprintf(FLIST,"   %10.7f   %10.7f\n",R,R*S);
+        errorsSecond.append(R * S);
+    }
+
+    fprintf(FLIST,"\n");
+
+    MINFIT(3*(N0+N1),nonLinearParamsCount,1,1e-16,1e-30,AX,Q);
+    fprintf(FLIST,"\nsingular values and appropriate columns of V\n");
+    for (I=0; I<6; I++) fprintf(FLIST,"%12.5e ",Q[I]);
+    fprintf(FLIST,"\n\n");
+    for (I=0; I<nonLinearParamsCount; I++) {
+        for (J=0; J<6; J++) fprintf(FLIST,"%12.5e ",AX[I][J]);
+        fprintf(FLIST,"\n");
+    }
+    fprintf(FLIST,"\n");
+    for (I=6; I<nonLinearParamsCount; I++) fprintf(FLIST,"%12.5e ",Q[I]);
+    fprintf(FLIST,"\n\n");
+    for (I=0; I<nonLinearParamsCount; I++) {
+        for (J=6; J<nonLinearParamsCount; J++) fprintf(FLIST,"%12.5e ",AX[I][J]);
+        fprintf(FLIST,"\n");
+    }
+    fprintf(FLIST,"\n");
+
+    for (I=0; I<nonLinearParamsCount; I++) for (J=0; J<nonLinearParamsCount; J++) {
+        A[I][J]=0; for (K=0; K<nonLinearParamsCount; K++) A[I][J]+=AX[I][K]*AX[J][K]/Q[K]/Q[K];
+    }
+    fprintf(FLIST,"standart deviations\n");
+    for (I=0; I<6; I++) fprintf(FLIST,"%12.5e ",W*sqrt(A[I][I]));
+    fprintf(FLIST,"\n");
+    for (I=6; I<nonLinearParamsCount; I++) fprintf(FLIST,"%12.5e ",W*sqrt(A[I][I]));
+    fprintf(FLIST,"\n");
+}
+
+
+
+
+
+void BallApproximator::PROGN(double *X)
+{
+    int I;
+    double A0,A1,A2,D,S,S1,S2;
+    double E0[3],E1[3],E2[3],PZ[3];
+
+    E0[0]=1/sqrt(2); E0[1]=E0[0]; E0[2]=0;
+    E1[0]=-E0[0]; E1[1]=E0[0]; E0[2]=0;
+    E2[0]=0; E2[1]=0; E2[0]=1;
+    PZ[0]=0; PZ[1]=0; PZ[2]=1.5;
+
+    fprintf(FLIST,"\nprognosis\n");
+    A0=0; A1=0; A2=0;
+    for (I=0; I<3; I++) {
+        A0+=E0[I]*X[I+6]; A1+=E0[I]*X[I+3]; A2+=E0[I]*X[I];
+    }
+    fprintf(FLIST,"coefficients %14.7e %14.7e %14.7e\n",A0,A1,A2);
+    fprintf(FLIST,"root ");
+    D=A1*A1-4*A0*A2;
+    if (fabs(A0)>1e-10) {
+        S=-0.5*(A1+sqrt(D))/A0; S1=-A2/A1; S2=S1*(1-A0*S1/A1);
+        fprintf(FLIST,"%14.7e %14.7e %14.7e\n",S,S1,S2);
+        fprintf(FLIST,"errors %14.7e %14.7e\n",S1-S,S2-S);
+    }
+    else {
+        S1=-A2/A1; S2=S1*(1-A0*S1/A1);
+        fprintf(FLIST,"%14.7e %14.7e\n",S1,S2);
+        fprintf(FLIST,"%14.7e %14.7e\n",S1-S2);
+        S=S2;
+    }
+    S1=0; S2=0;
+    for (I=0; I<3; I++) {
+        D=X[I]+S*(X[I+3]+S*X[I+6]); S1+=E1[I]*D; S2+=E2[I]*D;
+    }
+    fprintf(FLIST,"coordinates on the target %14.7e %14.7e\n",S1,S2);
+
+    {
+        int K,NR0=16,NR=NR0*NR0,M=100; //test
+        double M1,M2;
+
+        M1=0; M2=0;
+        for (I=1; I<M; I++) {
+            S=0; for (K=0; K<NR; K++) {D=rand(); S+=D/32767.0-0.5;}
+            S=S*sqrt(12)/NR0; //fprintf(FLIST,"%g\n",S);
+            M1+=S; M2+=S*S;
+        }
+        M1/=M; M2=sqrt(M2/M-M1*M1);
+        fprintf(FLIST,"check (0, 1)? %g %g\n",M1,M2);
+    }
+}
+
+
+
+
+void BallApproximator::FIRST()
+{
+    double TB,TF,Y[maxNumberOfMeasures],P[3],E;
+    int I,J;
+
+    TB=T0[0];
+    if (TB<T1[0])
+    {
+        TB=T1[0];
+    }
+    TF = T0[N0-1];
+
+    if(TF > T1[N1-1])
+    {
+        TF = T1[N1-1];
+    }
+    E=(TF-TB)/(fisrtMeasureCount - 1);
+    for (I=0; I<fisrtMeasureCount; I++)
+    {
+        timeSame[I]=TB+E*I;
+    }
+
+    for (J=0; J<3; J++) {
+        for (I=0; I<N0; I++) Y[I]=U0[I][J];
+        PARAB(N0,T0,Y,P,&E);
+        for (I=0; I<fisrtMeasureCount; I++) U0[I][J]=P[0]+(timeSame[I]-TIN)*(P[1]+(timeSame[I]-TIN)*P[2]);
+        for (I=0; I<N1; I++) Y[I]=U1[I][J];
+        PARAB(N1,T1,Y,P,&E);
+        for (I=0; I<fisrtMeasureCount; I++) U1[I][J]=P[0]+(timeSame[I]-TIN)*(P[1]+(timeSame[I]-TIN)*P[2]);
+    }
+
+    for (I=0; I<fisrtMeasureCount; I++) {
+        E=0;
+        for (J=0; J<3; J++) E+=U0[I][J]*U0[I][J];
+        E=sqrt(E);
+        for (J=0; J<3; J++) U0[I][J]/=E;
+    }
+    for (I=0; I<fisrtMeasureCount; I++) {
+        E=0;
+        for (J=0; J<3; J++) E+=U1[I][J]*U1[I][J];
+        E=sqrt(E);
+        for (J=0; J<3; J++) U1[I][J]/=E;
+    }
+}
+
+
+
+
+void BallApproximator::MINFIT(int M, int N, int P, double EPS, double TOL, double (*AB)[nonLinearParamsCountPlus], double *Q)
+
+/*
+   Computation of the matrices diag(Q), V and C such that for given real M*N
+   matrix A and M*P matrix B
+
+                   U'*A*V=diag(Q) and  U'*B=C
+
+   with orthogonal matrices U and V. The singular values and the matrices V
+   and C may be used to determine X# minimizing
+
+                (1) normF(A*X-B) and (2) normF(X)
+
+   with the solution
+
+              X# = V*(Psevdo-inverse of diag(Q))*C.
+
+   The procedure can also be used to determine the complete solution
+   of underdetermined linear system, i.e. rank(A)=M<N. The array Q[0..N-1]
+   represents the matrix diag(Q). A and B together are to be given as
+   the first M rows of the array AB[0..M-1,0..N+P-1]. V is returned in the
+   first N rows and columns of AB while C in the last P colomns of AB (if P>0).
+*/
+{
+    int I,J,K,L,L1,NP;
+    double C,F,G,H,S,X,Y,Z,E[nonLinearParamsCount];
+
+    // Householder's reduction to bidiagonal form
+    G=0.0; X=0.0; NP=N+P;
+    for (I=0; I<N; I++) {
+        E[I]=G; S=0.0; L=I+1;
+        for (J=I; J<M; J++) S+=AB[J][I]*AB[J][I];
+        if (S<TOL) G=0.0; else {
+            F=AB[I][I];
+            if (F<0) G=sqrt(S); else G=-sqrt(S);
+            H=F*G-S; AB[I][I]=F-G;
+            for (J=L; J<NP; J++) {
+                S=0.0;
+                for (K=I; K<M; K++) S+=AB[K][I]*AB[K][J];
+                F=S/H;
+                for (K=I; K<M; K++) AB[K][J]+=F*AB[K][I];
+            } // end(J)
+        } // end{S};
+        Q[I]=G; S=0.0;
+        if (I<M) for (J=L; J<N; J++) S+=AB[I][J]*AB[I][J];
+        if (S<TOL) G=0.0; else {
+            F=AB[I][I+1];
+            if (F<0) G=sqrt(S); else G=-sqrt(S);
+            H=F*G-S; AB[I][I+1]=F-G;
+            for (J=L; J<N; J++) E[J]=AB[I][J]/H;
+            for (J=L; J<M; J++) {
+                S=0.0;
+                for (K=L; K<N; K++) S+=AB[J][K]*AB[I][K];
+                for (K=L; K<N; K++) AB[J][K]+=S*E[K];
+            } // end{J}
+        } // end{S}
+        Y=fabs(Q[I])+fabs(E[I]); if (Y>X) X=Y;
+    } // end{I}
+
+    // accumulation of right-hand transformations
+    for (I=N-1; I>=0; I--) {
+        if (G!=0) {
+            H=AB[I][I+1]*G;
+            for (J=L; J<N; J++) AB[J][I]=AB[I][J]/H;
+            for (J=L; J<N; J++) {
+                S=0.0;
+                for (K=L; K<N; K++) S+=AB[I][K]*AB[K][J];
+                for (K=L; K<N; K++) AB[K][J]+=S*AB[K][I];
+            } // end{J}
+        } // end{G}
+        for (J=L; J<N; J++) {AB[I][J]=0.0; AB[J][I]=0.0;}
+        AB[I][I]=1.0; G=E[I]; L=I;
+    } // end{I}
+    EPS=EPS*X; //N1=N+1;
+    for (I=M; I<N; I++) for (J=N; J<NP; J++) AB[I][J]=0;
+
+    // diagonalization of the bidiogonal form
+    for (K=N-1; K>=0; K--) {
+        // test F splitting}
+M1:   for (L=K; L>=0; L--) {
+            if (fabs(E[L])<=EPS) goto M3;
+            if (fabs(Q[L-1])<=EPS) goto M2;
+        } // end{L}
+
+        // cancellation of E[L] if L>1
+        // cancellation
+M2: C=0.0;
+        S=1.0; L1=L-1;
+        for (I=L; I<=K; I++) {
+            F=S*E[I]; E[I]*=C;
+            if (fabs(F)<=EPS) goto M3;
+            G=Q[I]; H=sqrt(F*F+G*G); Q[I]=H; C=G/H; S=-F/H;
+            for (J=N; J<NP; J++) {
+                Y=AB[L1][J]; Z=AB[I][J];
+                AB[L1][J]=Y*C+Z*S; AB[I][J]=-Y*S+Z*C;
+            } // end{J}
+        } //e nd{I}
+
+        // test f convergence
+M3: Z=Q[K];
+        if (L==K) goto M4;
+
+        // shift from bottom 2*2 minor
+        X=Q[L]; Y=Q[K-1]; G=E[K-1]; H=E[K];
+        F=((Y-Z)*(Y+Z)+(G-H)*(G+H))/(2*H*Y); G=sqrt(F*F+1);
+        if (F<0) F=F-G; else F=F+G;
+        F=((X-Z)*(X+Z)+H*(Y/F-H))/X;
+
+        // next QR transformation
+        C=1.0; S=1.0;
+        for (I=L+1; I<=K; I++) {
+            G=E[I]; Y=Q[I]; H=S*G; G=C*G;
+            Z=sqrt(F*F+H*H); C=F/Z; S=H/Z; E[I-1]=Z;
+            F=X*C+G*S; G=-X*S+G*C; H=Y*S; Y=Y*C;
+            for (J=0; J<N; J++) {
+                X=AB[J][I-1]; Z=AB[J][I];
+                AB[J][I-1]=X*C+Z*S; AB[J][I]=-X*S+Z*C;
+            } // end{J}
+            Z=sqrt(F*F+H*H); C=F/Z; S=H/Z; Q[I-1]=Z;
+            F=C*G+S*Y; X=-S*G+C*Y;
+            for (J=N; J<NP; J++) {
+                Y=AB[I-1][J]; Z=AB[I][J];
+                AB[I-1][J]=Y*C+Z*S; AB[I][J]=-Y*S+Z*C;
+            } // end{J}
+        } // end{I};
+        E[L]=0.0; E[K]=F; Q[K]=X; goto M1;
+
+        // convergence
+M4: if (Z<0) {
+            // Q[K] is made non-negative
+            Q[K]=-Z;
+            for (J=0; J<N; J++) AB[J][K]=-AB[J][K];
+        } // end{Z}
+    } //end{K}
+} // end{MINFIT};
+
 

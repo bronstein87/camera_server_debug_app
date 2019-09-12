@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1215</width>
-    <height>1263</height>
+    <width>1301</width>
+    <height>1132</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -15,32 +15,118 @@
   </property>
   <widget class="QWidget" name="centralWidget">
    <layout class="QGridLayout" name="gridLayout">
-    <item row="1" column="0">
-     <widget class="QTabWidget" name="cameraTabWidget">
-      <property name="currentIndex">
-       <number>-1</number>
-      </property>
-     </widget>
-    </item>
-    <item row="2" column="0">
-     <widget class="QPushButton" name="pushButton">
-      <property name="text">
-       <string>PushButton</string>
-      </property>
-     </widget>
-    </item>
     <item row="0" column="0">
-     <widget class="QGraphicsView" name="graphicsView"/>
+     <layout class="QHBoxLayout" name="horizontalLayout">
+      <item>
+       <widget class="QToolButton" name="startServerToolButton">
+        <property name="toolTip">
+         <string>Включить сервер,</string>
+        </property>
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset resource="resources.qrc">
+          <normaloff>:/resources/iconfinder_on_off_1216568.png</normaloff>:/resources/iconfinder_on_off_1216568.png</iconset>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="cameraOptionsToolButton">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset resource="resources.qrc">
+          <normaloff>:/resources/iconfinder_camera_299066.png</normaloff>:/resources/iconfinder_camera_299066.png</iconset>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="serverOptionsToolButton">
+        <property name="text">
+         <string/>
+        </property>
+        <property name="icon">
+         <iconset resource="resources.qrc">
+          <normaloff>:/resources/iconfinder_Settings_408409.png</normaloff>:/resources/iconfinder_Settings_408409.png</iconset>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QSlider" name="plotHorizontalSlider">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="applyFirstCalibToolButton">
+        <property name="text">
+         <string>КАЛИБРОВКА 1</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QToolButton" name="applySecondCalibToolButton">
+        <property name="text">
+         <string>КАЛИБРОВКА 2</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </item>
+    <item row="1" column="0">
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>1</number>
+      </property>
+      <widget class="QWidget" name="tab">
+       <attribute name="title">
+        <string>Камеры</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="0" column="0">
+         <widget class="QTabWidget" name="cameraTabWidget">
+          <property name="currentIndex">
+           <number>-1</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="tab_3">
+       <attribute name="title">
+        <string>Графики</string>
+       </attribute>
+       <layout class="QGridLayout" name="gridLayout_5">
+        <item row="0" column="0">
+         <layout class="QGridLayout" name="gridLayout_4">
+          <item row="0" column="1">
+           <widget class="QCustomPlot" name="recCountCustomPlot" native="true"/>
+          </item>
+          <item row="0" column="0">
+           <widget class="QCustomPlot" name="errorsCustomPlot" native="true"/>
+          </item>
+          <item row="0" column="2">
+           <widget class="QCustomPlot" name="calibDiffFirstCustomPlot" native="true"/>
+          </item>
+          <item row="1" column="0">
+           <widget class="QCustomPlot" name="timesCustomPlot" native="true"/>
+          </item>
+          <item row="1" column="2">
+           <widget class="QCustomPlot" name="calibDiffSecondCustomPlot" native="true"/>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </widget>
     </item>
    </layout>
-  </widget>
-  <widget class="QToolBar" name="mainToolBar">
-   <attribute name="toolBarArea">
-    <enum>TopToolBarArea</enum>
-   </attribute>
-   <attribute name="toolBarBreak">
-    <bool>false</bool>
-   </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
   <widget class="QMenuBar" name="menuBar">
@@ -48,37 +134,29 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1215</width>
-     <height>25</height>
+     <width>1301</width>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu">
     <property name="title">
      <string>Основное</string>
     </property>
-    <addaction name="serverStartAction"/>
-    <addaction name="openOptionsAction"/>
-    <addaction name="serverOptionsAction"/>
    </widget>
    <addaction name="menu"/>
   </widget>
-  <action name="serverStartAction">
-   <property name="text">
-    <string>Запустить сервер</string>
-   </property>
-  </action>
-  <action name="openOptionsAction">
-   <property name="text">
-    <string>Настройки камер</string>
-   </property>
-  </action>
-  <action name="serverOptionsAction">
-   <property name="text">
-    <string>Настройки сервера</string>
-   </property>
-  </action>
  </widget>
  <layoutdefault spacing="6" margin="11"/>
- <resources/>
+ <customwidgets>
+  <customwidget>
+   <class>QCustomPlot</class>
+   <extends>QWidget</extends>
+   <header>qcustomplot/qcustomplot.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="resources.qrc"/>
+ </resources>
  <connections/>
 </ui>

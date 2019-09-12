@@ -9,6 +9,7 @@
 #include <mathfunc.h>
 
 
+
 using namespace BOKZMath;
 class BallApproximator : QObject
 {
@@ -28,7 +29,11 @@ public:
     void rotateMovementParameters(double pos[3], double v[3], double a[3]);
 
     void calculateIntercept(double plane[4], double pos[3], double v[3], double a[3],
-               double &t1, double &t2, double coord1[3], double coord2[3]) ;
+    double &t1, double &t2, double coord1[3], double coord2[3]) ;
+
+    bool calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
+                                    double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
+                                    double& xBegin, double rot[], double &W);
 
     void  getXLinearParameters(double res[3])
     {
@@ -81,13 +86,59 @@ public:
         }
     }
 
+    QVector <double> getFirstErrors() {return errorsFirst;}
+
+    QVector <double> getSecondErrors() {return errorsSecond;}
+
+    QVector <double> getFirstTime()
+    {
+        QVector <double> T;
+        for (qint32 i = 0; i < N0; ++i)
+        {
+            T.append(T0[i]);
+        }
+        return T;
+    }
+
+
+    QVector <double> getSecondTime()
+    {
+        QVector <double> T;
+        for (qint32 i = 0; i < N1; ++i)
+        {
+            T.append(T1[i]);
+        }
+        return T;
+    }
+
+
+    QVector <double> getFirstTimeInit()
+    {
+        return fTimeR;
+    }
+
+
+    QVector <double> getSecondTimeInit()
+    {
+        return sTimeR;
+    }
+
+
     double getTIN() {return TIN;}
+
+    void solveQuadratic(double a, double b, double c, double& x1, double& x2);
+
+    static const int maxNumberOfMeasures = 100;
+
 private:
+
+
 
     static const int numberResults = 1;
     static const int nonLinearParamsCount = 9;
-    static const int maxNumberOfMeasures = 200;
-     int fisrtMeasureCount = 15;
+    static const int nonLinearParamsCountPlus = 10;
+
+    int fisrtMeasureCount = 15;
 
     QVector <Calibration::Position> fR;
     QVector<Calibration::Position> sR;
@@ -96,12 +147,14 @@ private:
     Calibration::Position fPosR;
     Calibration::Position sPosR;
 
+    double timeSame[maxNumberOfMeasures];
+
     double CAM0[3], CAM1[3], DC[3];
     double T0[maxNumberOfMeasures];
     double T1[maxNumberOfMeasures];
     double U0[maxNumberOfMeasures][3];
     double U1[maxNumberOfMeasures][3];
-    double timeSame[maxNumberOfMeasures];
+
     double xLinearParams[3];
     double yLinearParams[3];
     double zLinearParams[3];
@@ -111,7 +164,8 @@ private:
     double TIN;
     int N0, N1;
     FILE *FLIST;
-
+    QVector <double> errorsFirst;
+    QVector <double> errorsSecond;
 
     void PARAB(int K, double *T, double *X, double *RVW, double *E);
 
@@ -138,6 +192,16 @@ private:
     void COVMAT(int NPAR, int NDIV, double *X,bool writeToFile);
 
     void FIRST();
+
+    void MINFIT(int M, int N, int P, double EPS, double TOL, double (*AB)[nonLinearParamsCountPlus], double *Q);
+
+    void SYST(double *X, double (*B)[nonLinearParamsCountPlus]);
+
+    void NEWT(double *X);
+
+    void ERRORS(double *X);
+
+    void PROGN(double *X);
 };
 
 #endif // BALLAPPROXIMATOR_H

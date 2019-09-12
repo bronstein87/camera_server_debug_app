@@ -1,17 +1,28 @@
+//#include <gst/gst.h>
+//include <glib.h>
+//#include <gst/rtsp-server/rtsp-server.h>
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
 #include <QImage>
 #include <QPixmap>
 #include <QVBoxLayout>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/core.hpp>
+using namespace cv;
 
 MainWindow::MainWindow(QWidget *parent) :
-    QMainWindow(parent), server(new CameraServer(this)),
-    ui(new Ui::MainWindow), sync(new Synchronizer), optionsWindow(new CameraOptionsWindow(sync.data(), server)),  serverOptionsWindow(new ServerOptionsWindow(sync.data()))
+    QMainWindow(parent), server(new CameraServer()),
+    ui(new Ui::MainWindow), sync(new Synchronizer), optionsWindow(new CameraOptionsWindow(sync.data(), server)),
+    serverOptionsWindow(new ServerOptionsWindow(sync.data()))
 {
 
     ui->setupUi(this);
     connect(server, &CameraServer::readyMessageFromServer, this, [this](auto mes, auto socket)
     {
+        if (!optionsWindow->showExposureVerbose() && mes.contains("AUTOEXP"))
+        {
+            return;
+        }
         QString currentDt = QDateTime::currentDateTime().toString(Qt::ISODate);
         if (socket != nullptr)
         {
@@ -25,8 +36,6 @@ MainWindow::MainWindow(QWidget *parent) :
         }
 
     });
-
-
     connect(ui->cameraTabWidget, &QTabWidget::currentChanged, [this](auto index)
     {
         QMapIterator <QTcpSocket*, CameraGUIInfo> i(camerasGUI);
@@ -58,8 +67,8 @@ MainWindow::MainWindow(QWidget *parent) :
         layout->addWidget(monitor);
         wgt->setLayout(layout);
         info.tabIndex = ui->cameraTabWidget->addTab(wgt, QString("Камера №%1").arg(camerasGUI.size() + 1));
-
         camerasGUI.insert(socket, info);
+        ui->cameraTabWidget->setCurrentIndex(ui->cameraTabWidget->count() - 1);
         optionsWindow->setCurrentCamera(socket, static_cast <EditFrameQGraphicsScene*> (view->scene()));
         server->requestCurrentCameraParameters(socket);
     });
@@ -79,123 +88,106 @@ MainWindow::MainWindow(QWidget *parent) :
     {
         ZoomGraphicsView* view = camerasGUI[socket].view;
         auto img = server->getFrameFromStream(socket);
+        Mat imgRgb;
+        cvtColor(img, imgRgb, CV_BGR2RGB);
         static_cast <EditFrameQGraphicsScene*> (view->scene())
                 ->setFrame(QPixmap::fromImage(
-                               QImage((uchar*)img.data, img.cols, img.rows, img.step, QImage::Format_RGB888)));
+                               QImage(static_cast <uchar*>(imgRgb.data), img.cols, img.rows, img.step, QImage::Format_RGB888)));
     });
 
 
     connect(optionsWindow, &CameraOptionsWindow::correlatedImageReady, this, [this](auto mat, auto socket)
     {
         ZoomGraphicsView* view = camerasGUI[socket].view;
+        Mat imgRgb;
+        cvtColor(mat, imgRgb, CV_BGR2RGB);
         static_cast <EditFrameQGraphicsScene*> (view->scene())
                 ->setFrame(QPixmap::fromImage(
-                               QImage((uchar*)mat.data, mat.cols, mat.rows, mat.step, QImage::Format_RGB888)));
+                               QImage(static_cast <uchar*> (imgRgb.data), mat.cols, mat.rows, mat.step, QImage::Format_RGB888)));
     });
 
+    connect(server, &CameraServer::resultPictureReady, this, [this](QImage& pic)
+    {
+        for (auto& i : camerasGUI.keys())
+        {
+            ZoomGraphicsView* view = camerasGUI[i].view;
+            static_cast <EditFrameQGraphicsScene*> (view->scene())
+                    ->setFrame(QPixmap::fromImage(pic));
+        }
+    });
+    QMap <qint32, QColor> plotMap;
+    QVector <QCustomPlot*> plots;
+    plotMap.insert(3850, QColor(255, 0, 0));
+    plotMap.insert(4510, QColor(0, 255, 0));
+    ApproximationVisualizer& av = ApproximationVisualizer::instance();
+    av.initCamerasPlots(plotMap);
+    av.setPlots(QVector <QCustomPlot*> {ui->errorsCustomPlot, ui->timesCustomPlot, ui->recCountCustomPlot, ui->calibDiffFirstCustomPlot,
+                ui->calibDiffSecondCustomPlot});
+    connect(&av, &ApproximationVisualizer::measureCountChanged, [this](qint32 count)
+    {
+        ui->plotHorizontalSlider->setRange(0, count);
+    });
 
-    QPixmap px("/home/nvidia/actual_server/server_debug/calibrate/picture.jpg");
-    QGraphicsPixmapItem* item  = new QGraphicsPixmapItem(px);
-
-     server->testApproximation("/home/nvidia/actual_server/server_debug/calibrate/4510_approx",
-                               "/home/nvidia/actual_server/server_debug/calibrate/3850_approx", item);
-     QGraphicsScene* scene = new QGraphicsScene(this);
-     scene->addItem(item);
-     ui->graphicsView->setScene(scene);
-     scene->setSceneRect(scene->itemsBoundingRect());                          // Re-shrink the scene to it's bounding contents
-     QImage image(scene->sceneRect().size().toSize(), QImage::Format_ARGB32);  // Create the image with the exact size of the shrunk scene
-     image.fill(Qt::transparent);                                              // Start all pixels transparent
-
-     QPainter painter(&image);
-     scene->render(&painter);
-     image.save("/home/nvidia/actual_server/server_debug/calibrate/file_name.png");
-
-
-
-
-
-
-   //server->createCalibrateImage("/home/nvidia/recalibrate_debug/right (3850).bmp.tif", "/home/nvidia/recalibrate_debug/3850_wh", "/home/nvidia/recalibrate_debug/cor2.png", 35);
-   // Mat fm(1216, 1936, CV_8UC3);
-   // Mat m = imread("/home/nvidia/actual_server/server_debug/calibrate/4510test.bmp");
-    //m.copyTo(fm(Rect(0, 0, 1920, 1080)));
-   // imwrite("/home/nvidia/actual_server/server_debug/calibrate/TEST.png", fm);
-   // helper.createCalibrateImage("/home/nvidia/actual_server/server_debug/calibrate/left (4510).bmp.tif",
-   //                           "/home/nvidia/actual_server/server_debug/calibrate/4510_wh", fm, 25);
-
-//    Calibration::ExteriorOr eOr, nEOr;
-//    Calibration::SpacecraftPlatform::CAMERA::CameraParams cam, nCam;
-//    CalibrationAdjustHelper::readCurrentCalibrationParameters(4510, "/home/nvidia/actual_server/server_debug/calibrate", eOr, cam);
-//    helper.recalibrate(QVector <qint32> {}, eOr, cam, nEOr, nCam);
-//    qDebug() << "finished" << nEOr.Point.X << nEOr.Point.Y << nEOr.Point.Z
-//             << Calibration::Radian2Deg(nEOr.OPK.Omega)
-//             << Calibration::Radian2Deg(nEOr.OPK.Phi)
-//             << Calibration::Radian2Deg(nEOr.OPK.Kappa);
+    QDir dir;
+    QString gamesDirName = QString("games_%1").arg(QDate::currentDate().toString("dd_MM_yyyy"));
+    if (dir.mkdir(gamesDirName))
+    {
+        qDebug() << dir.setCurrent(gamesDirName);
+        dir.mkdir("4510");
+        dir.mkdir("3850");
+        dir.mkdir("results");
+        dir.mkdir("graphs");
+    }
 }
 
 MainWindow::~MainWindow()
 {
+    delete server;
+    delete optionsWindow;
+    delete serverOptionsWindow;
     delete ui;
 }
 
 
 
-//    imgIn = new QImage((uchar*) img.data, img.cols, img.rows, img.step, QImage::Format_RGB888);
 
-void MainWindow::on_serverStartAction_triggered()
+void MainWindow::on_startServerToolButton_clicked()
 {
     server->startServer();
 }
 
-void MainWindow::on_openOptionsAction_triggered()
+void MainWindow::on_cameraOptionsToolButton_clicked()
 {
     if (ui->cameraTabWidget->count() >= 1)
     {
         optionsWindow->show();
     }
+
 }
 
-void MainWindow::on_serverOptionsAction_triggered()
+void MainWindow::on_serverOptionsToolButton_clicked()
 {
     serverOptionsWindow->show();
 }
-#include <unistd.h>
 
-
-
-
-void MainWindow::on_pushButton_clicked()
+void MainWindow::on_plotHorizontalSlider_sliderMoved(int position)
 {
-//    sync->blockSignals(true);
-//    if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 1))
-//    {
-//        usleep(1000000);
-//        if (sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1))
-//        {
-//            //cameraServer->checkSync();
-//            QTimer::singleShot(750, this, [this]()
-//            {
-//                sync->sendCommand(Synchronizer::SynchronizerProtocol::StopSync, 0x1);
-//                usleep(1000000);
-//            }
-//            );
+     ApproximationVisualizer& av = ApproximationVisualizer::instance();
+     av.showMeasure(position, 3850, 4510); // tmp
+}
 
-//        }
-//    }
-//    sync->blockSignals(false);
-    sync->blockSignals(true);
-    if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 1))
-    {
-        if (sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1))
-        {
-            //cameraServer->checkSync();
-            QTimer::singleShot(500, this, [this]()
-            {
-                sync->sendCommand(Synchronizer::SynchronizerProtocol::StopSync, 0x1);
-            }
-            );
+void MainWindow::on_applyFirstCalibToolButton_clicked()
+{
+    CalibrationAdjustHelper helper;
+    auto map = ApproximationVisualizer::instance().getCalibMap();
+    helper.updateCalibrateInfo(3850, map[3850].last().eOr); //tmp
+    imwrite(QString("calibrate/new%1.png").arg(3850).toStdString(), server->getLastCameraFrame(3850));
+}
 
-        }
-    }
-    sync->blockSignals(false);
+void MainWindow::on_applySecondCalibToolButton_clicked()
+{
+    CalibrationAdjustHelper helper;
+    auto map = ApproximationVisualizer::instance().getCalibMap();
+    helper.updateCalibrateInfo(4510, map[4510].last().eOr); //tmp
+    imwrite(QString("calibrate/new%1.png").arg(4510).toStdString(), server->getLastCameraFrame(4510));
 }

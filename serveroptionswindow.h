@@ -4,6 +4,7 @@
 #include <QWidget>
 #include <synchronizer.h>
 #include <QString>
+#include <QSettings>
 
 
 namespace Ui {
@@ -38,6 +39,10 @@ private slots:
     void on_frameRateSecondSpinBox_editingFinished();
 
 private:
+
+    void loadSettings();
+    void saveSettings();
+
     Ui::ServerOptionsWindow *ui;
     Synchronizer* sync = nullptr;
 };

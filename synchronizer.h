@@ -24,6 +24,8 @@ public:
 
     bool connect(qint32 port);
 
+    bool isConnected() {return syncHard.isOpen();}
+
     void disconnect() {syncHard.close();}
 
     ~Synchronizer();

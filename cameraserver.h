@@ -12,9 +12,9 @@
 #include <QMap>
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
-#include <opencv2/cudaimgproc.hpp>
-#include <opencv2/cudaarithm.hpp>
-#include <opencv2/cudacodec.hpp>
+//#include <opencv2/cudaimgproc.hpp>
+//#include <opencv2/cudaarithm.hpp>
+//#include <opencv2/cudacodec.hpp>
 #include <QtConcurrent/QtConcurrent>
 #include <QLinkedList>
 #include <QMutex>
@@ -29,9 +29,10 @@
 #include <QGraphicsPixmapItem>
 #include <QPen>
 #include <QGraphicsView>
+#include <QFont>
+#include <QFontDatabase>
+#include <approximationvisualizer.h>
 
-
-using namespace cv;
 
 
 enum Camera57Protocol
@@ -48,6 +49,8 @@ enum Camera57Protocol
     RestartCamera = 0x59,
     AskCurrentCameraParams = 0x57,
     SendCurrentFrame = 0x60,
+    SendSaveParameters = 0x61,
+    SendRecognizeVideo = 0x62,
     EndOfMessageSign = 0x23
 };
 
@@ -67,6 +70,13 @@ enum LightningParameter
     Invalid,
     Day,
     Evening
+};
+
+enum AppendFrameRule
+{
+    JustLast,
+    JustQueue,
+    All
 };
 
 
@@ -130,7 +140,7 @@ struct CurrentCameraParams
     qint32 sendFrameRate;
     qint32 gain;
     RecROIs recRois;
-    Rect wbRect; // tmp
+    cv::Rect wbRect; // tmp
     AutoExposureParameters autoExpParams;
     qint32 rawFrame = -1;
     qint32 videoDuration;
@@ -158,9 +168,31 @@ struct CurrentCameraParams
     qint32 ballRecognizeFlag = -1;
     qint32 ballRecognizeStep = -1;
     qint32 debugRecFlag = 0;
+    qint32 debounceEnable = -1;
+    qint32 debounceValue = -1;
 };
 #pragma pack(pop)
 
+
+
+
+constexpr const static qint32 maxNumberOfMeasures = 100;
+
+constexpr const static qint32 measureDim = 4;
+
+struct RecognizeData
+{
+    double data[maxNumberOfMeasures][measureDim];
+    qint32 size;
+    QTime startTime;
+};
+
+struct RecognizeVideoData
+{
+    QTime startTime;
+    qint32 frameCount;
+    QVector <quint64> times;
+};
 
 struct CameraStatus
 {
@@ -174,7 +206,10 @@ struct CameraStatus
     bool showVideo = false;
     bool writeVideo = false;
     QVector <quint64> times;
-    Mat lastFrame;
+    cv::Mat lastFrame;
+    QVector <RecognizeData> recData;
+    QVector <RecognizeVideoData> recVideoData;
+
 };
 
 
@@ -207,7 +242,7 @@ struct CameraOptions
     double shadowThreshold = -1;
     qint32 shadowGaussWindowSize = -1;
     RecROIs recRois;
-    Rect wbRect; // tmp
+    cv::Rect wbRect; // tmp
     AutoExposureParameters autoExpParams;
     qint32 rawFrame = -1;
     qint32 videoDuration = -1;
@@ -216,20 +251,8 @@ struct CameraOptions
     qint32 ballRecognizeFlag = -1;
     qint32 ballRecognizeStep = -1;
     qint32 debugRecFlag = -1;
-};
-#pragma pack(pop)
-
-
-
-
-
-#define MAX_BALL_OBSERVATIONS 100
-
-#pragma pack(push, 2)
-struct BaseBallCoordinates
-{
-    quint16 size;
-    float coordinates[MAX_BALL_OBSERVATIONS][3];
+    qint32 debounceEnable = -1;
+    qint32 debounceValue = -1;
 };
 #pragma pack(pop)
 
@@ -238,7 +261,7 @@ class CameraServer : public QObject
 {
     Q_OBJECT
 public:
-    explicit CameraServer(QObject *parent = 0);
+    explicit CameraServer(QObject *parent = nullptr);
 
     ~CameraServer();
 
@@ -250,6 +273,8 @@ public:
 
     void sendParametersToCamera(const CameraOptions& parameters, QTcpSocket* socket);
 
+    void receiveRecognizeVideo(QTcpSocket* camera);
+
     void requestCurrentCameraParameters(QTcpSocket* socket);
 
     void updateParamsForAllCameras();
@@ -258,9 +283,15 @@ public:
 
     void restartCamera(QTcpSocket* socket);
 
+    void saveCameraSettings(QTcpSocket* camera);
+
+    void checkRecognizeResults();
+
     cv::Mat getFrameFromStream(QTcpSocket* socket);
 
     cv::Mat getLastCameraFrame(QTcpSocket* camera);
+
+     cv::Mat getLastCameraFrame(qint32 num);
 
     CurrentCameraParams& getLastCurrentParameters(QTcpSocket* socket) {return cameras[socket].curParams;}
 
@@ -272,11 +303,9 @@ public:
 
     void checkSync();
 
-    void syncFrame();    
+    void syncFrame(AppendFrameRule rule = All, bool dontSetStream = false);
 
-    void testApproximation(const QString& fCameraPath, const QString& sCameraPath, QGraphicsPixmapItem *item);
-
-    Mat createCalibrateImage(const QString& refImagePath, const QString& pointListPath, Mat corImage, qint32 size);
+    void testApproximation(const QString& filePath, BallApproximator &approx, const QString &prefix = QString());
 
     void setWriteVideo(QTcpSocket* socket, bool f) {cameras[socket].writeVideo = f;}
 
@@ -285,6 +314,22 @@ public:
     bool getWriteVideo(QTcpSocket* socket) {return cameras[socket].writeVideo;}
 
     bool getShowVideo(QTcpSocket* socket) {return cameras[socket].showVideo;}
+
+    void enableAutoCalibrate(bool flag, qint32 syncFrameEvery, bool save, CompareFlag cFlag);
+
+    bool getAutoCalibrate() {return autoCalibrate;}
+
+    void enableRecognitionAll(bool flag);
+
+    void clearRecognizeData()
+    {
+        for (auto& i : cameras)
+        {
+            i.recData.clear();
+            i.recVideoData.clear();
+        }
+    }
+
 
 signals:
 
@@ -304,24 +349,28 @@ signals:
 
     void syncTimeGot();
 
+    void resultPictureReady(QImage& image);
+
 private:
 
     struct WriteRawVideoData
     {
-        WriteRawVideoData(QDataStream& _in, QTextStream& _ints, VideoWriter& _video, qint32 _width, qint32 _height)
+        WriteRawVideoData(QDataStream& _in, QTextStream& _ints, cv::VideoWriter& _video, qint32 _width, qint32 _height)
             :in(_in), ints(_ints), video(_video), width(_width), height(_height) {}
-         QDataStream &in;
-         QTextStream &ints;
-         VideoWriter &video;
-         qint32 width;
-         qint32 height;
+        QDataStream &in;
+        QTextStream &ints;
+        cv::VideoWriter &video;
+        qint32 width;
+        qint32 height;
     };
+
+    bool handleApproximation(BallApproximator& approx, qint32 fNum, double points1[maxNumberOfMeasures][measureDim], qint32 size1,  qint32 sNum, double points2[maxNumberOfMeasures][measureDim], qint32 size2);
 
     void correctSyncTime();
 
     void startServerInternal(QTcpServer* server, qint32 port);
 
-    void getFrameInternal(QTcpSocket* camera, qint32 port, const QString& path, bool sync);
+    void getFrameInternal(QTcpSocket* camera, qint32 port, const QString& path, bool sync, AppendFrameRule rule = All, bool dontSetStream = false);
 
     void getVideoInternal(QTcpSocket *camera, qint32 frameCount, qint32 port, bool compress, const QString& path);
 
@@ -329,22 +378,36 @@ private:
 
     void handleMessageFromCamera(QTcpSocket* camera);
 
-    void appendFrameToBuffer(cv::Mat frame, QTcpSocket* camera);
+    void appendFrameToBuffer(cv::Mat frame, QTcpSocket* camera, AppendFrameRule rule = All);
 
     void writeRawVideoStream(QTcpSocket *camera, QByteArray &buffer, cv::Mat matRaw, cv::Mat mat, qint32 &i, WriteRawVideoData& d);
+
+    void fillEndOfMessage(QByteArray& array);
+
+    void receiveRtspVideo(qint32 port, qint32 frameCount, const QString& path, QTcpSocket* camera, const QVector<quint64> &times = QVector<quint64>(), QTime throwTime = QTime());
+
+    qint32 correctCameraTime(quint64 &intTime, QTcpSocket* camera);
 
     QScopedPointer <QTcpServer> commandServer;
     QMap <QTcpSocket*, CameraStatus> cameras;
     QVector <char> avaliableCommands;
     QMutex streamMutex; // сделать mutex для каждой камеры?
+    QMutex autoCalibrateMutex;
     bool calibrate = false;
-    bool doSync = false;
-    QAtomicInteger <qint64> syncTime;
+    QAtomicInteger <qint64> syncTime = 0;
+    bool autoCalibrate = false;
+    bool updateAutoCalibrate = false;
+    CompareFlag compareFlag;
+    qint32 syncFrameEvery = 10;
+    QTimer frameEveryTimer;
+
     qint32 waitFor;
     static constexpr const qint32 exposureToCameraIntTime = 10000;
     static constexpr const qint32 correctSyncTimeEvery = 100;
     static constexpr const qint32 machineTimeEpsilon = 100;
     static constexpr const qint32 syncTimeEpsilon = 5000;
+
+
 };
 
 #endif // CAMERASERVER_H

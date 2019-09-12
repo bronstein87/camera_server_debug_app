@@ -1,0 +1,22 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/shadow.png</file>
+        <file>resources/zone_far.png</file>
+        <file>resources/zone_close.png</file>
+        <file>resources/fone.png</file>
+        <file>resources/cross.png</file>
+        <file>resources/baseball_PNG18979.png</file>
+        <file>resources/iconfinder_camera_299066.png</file>
+        <file>resources/iconfinder_on_off_1216568.png</file>
+        <file>resources/iconfinder_Settings_408409.png</file>
+        <file>resources/picture2.png</file>
+        <file>resources/ball_res.png</file>
+        <file>resources/picture3.png</file>
+        <file>resources/pitch.png</file>
+        <file>resources/speed.png</file>
+        <file>resources/strike_res.png</file>
+        <file>resources/zone_res.png</file>
+        <file>resources/cross2.png</file>
+        <file>resources/picture.png</file>
+    </qresource>
+</RCC>

@@ -8,6 +8,7 @@
 #include <QMessageBox>
 #include <synchronizer.h>
 #include <calibrationadjusthelper.h>
+#include <QSettings>
 
 
 class MainWindow;
@@ -25,6 +26,8 @@ public:
     ~CameraOptionsWindow();
 
     void setCurrentCamera(QTcpSocket* socket, EditFrameQGraphicsScene* scene);
+
+    bool showExposureVerbose();
 
 private slots:
 
@@ -147,8 +150,6 @@ private slots:
 
     void on_corrDoubleSpinBox_editingFinished();
 
-    void on_skoCountSpinBox_editingFinished();
-
     void on_searchAreaSizeSpinBox_editingFinished();
 
     void on_minSkoTemplateDoubleSpinBox_editingFinished();
@@ -187,15 +188,43 @@ private slots:
 
     void on_chooseReferenceFramePushButton_clicked();
 
-    void on_choosePointsListPushButton_clicked();
-
     void on_showPushButton_clicked();
 
     void on_calibratePushButton_clicked();
+
+    void on_debounceEnableGroupBox_toggled(bool arg1);
+
+    void on_debounceSpinBox_editingFinished();
+
+    void on_saveCameraSettingsPushButton_clicked();
+
+    void on_skoCountDoubleSpinBox_editingFinished();
+
+
+    void on_fullPictureCheckBox_clicked(bool checked);
+
+    void on_shortPictureCheckBox_clicked(bool checked);
+
+    void on_turnOnSyncFrameEveryCheckBox_toggled(bool checked);
+
+    void on_updateGraphsCheckBox_toggled(bool checked);
+
+    void on_turnOnRecogAllCamerasCheckBox_toggled(bool checked);
+
+    void on_compareCurrentRadioButton_toggled(bool checked);
+
+    void on_compareReferenceRadioButton_toggled(bool checked);
+
+    void on_compareNeibRadioButton_toggled(bool checked);
+
 signals:
-    void correlatedImageReady(Mat img, QTcpSocket* socket);
+    void correlatedImageReady(cv::Mat img, QTcpSocket* socket);
 
 private:
+
+    void loadSettings();
+
+    void saveSettings();
 
     void handleCurrentCameraParams(QTcpSocket *camera, const CurrentCameraParams& params);
 
@@ -205,6 +234,7 @@ private:
     QTcpSocket* currentCamera = nullptr;
     EditFrameQGraphicsScene* roiScene;
     CalibrationAdjustHelper calibAdjustHelper;
+    CompareFlag flag = CompareFlag::None;
 
 
 

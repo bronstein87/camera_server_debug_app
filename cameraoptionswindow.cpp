@@ -1,7 +1,7 @@
 #include "cameraoptionswindow.h"
 #include "ui_cameraoptionswindow.h"
-#include <unistd.h>
-
+//#include <unistd.h>
+using namespace cv;
 
 #define IS_SET_TRIGGER_OFF                  0x0000
 #define IS_SET_TRIGGER_CONTINUOUS           0x1000
@@ -17,6 +17,7 @@ CameraOptionsWindow::CameraOptionsWindow(Synchronizer* snc, CameraServer* server
     connect(cameraServer, &CameraServer::currentCameraParamsReady, this, &CameraOptionsWindow::handleCurrentCameraParams);
     ui->rawTcpStreamCheckBox->setChecked(false);
     connect(sync, &Synchronizer::changed, cameraServer, &CameraServer::updateParamsForAllCameras);
+    loadSettings();
 }
 
 
@@ -247,9 +248,9 @@ void CameraOptionsWindow::handleCurrentCameraParams(QTcpSocket* camera, const Cu
         ui->corrDoubleSpinBox->setValue(params.recParams.corrCoef);
         ui->corrDoubleSpinBox->blockSignals(false);
 
-        ui->skoCountSpinBox->blockSignals(true);
-        ui->skoCountSpinBox->setValue(params.recParams.skoCoef);
-        ui->skoCountSpinBox->blockSignals(false);
+        ui->skoCountDoubleSpinBox->blockSignals(true);
+        ui->skoCountDoubleSpinBox->setValue(params.recParams.skoCoef);
+        ui->skoCountDoubleSpinBox->blockSignals(false);
 
         ui->searchAreaSizeSpinBox->blockSignals(true);
         ui->searchAreaSizeSpinBox->setValue(params.recParams.searchAreaSize);
@@ -299,12 +300,19 @@ void CameraOptionsWindow::handleCurrentCameraParams(QTcpSocket* camera, const Cu
         ui->saveVideoCheckBox->blockSignals(true);
         ui->saveVideoCheckBox->setChecked(cameraServer->getWriteVideo(currentCamera));
         ui->saveVideoCheckBox->blockSignals(false);
+        ui->debounceEnableGroupBox->blockSignals(true);
+        ui->debounceEnableGroupBox->setChecked(params.debounceEnable);
+        ui->debounceEnableGroupBox->blockSignals(false);
+        ui->debounceSpinBox->blockSignals(true);
+        ui->debounceSpinBox->setValue(params.debounceValue);
+        ui->debounceSpinBox->blockSignals(false);
     }
 
 }
 
 CameraOptionsWindow::~CameraOptionsWindow()
 {
+    saveSettings();
     delete ui;
 }
 
@@ -312,6 +320,12 @@ void CameraOptionsWindow::setCurrentCamera(QTcpSocket* socket, EditFrameQGraphic
 {
     currentCamera = socket;
     roiScene = scene;
+    setWindowTitle(QString("Настройки камеры (%1)").arg(cameraServer->getLastCurrentParameters(socket).portSendStream));
+}
+
+bool CameraOptionsWindow::showExposureVerbose()
+{
+    return ui->exposureMessageCheckBox->isChecked();
 }
 
 void CameraOptionsWindow::on_gammaSlider_valueChanged(int value)
@@ -358,21 +372,21 @@ void CameraOptionsWindow::on_pictureParamGroupBox_toggled(bool arg1)
 
 void CameraOptionsWindow::on_requestFramePushButton_clicked()
 {
-    if (ui->framePathLineEdit->text().isEmpty())
-    {
-        QMessageBox::warning(this, "Внимание", "Не указан путь!");
-        return;
-    }
+    //    if (ui->framePathLineEdit->text().isEmpty())
+    //    {
+    //        QMessageBox::warning(this, "Внимание", "Не указан путь!");
+    //        return;
+    //    }
     cameraServer->requestFrameFromCamera(currentCamera, ui->streamPortSpinBox->value(), ui->framePathLineEdit->text());
 }
 
 void CameraOptionsWindow::on_requestVideoPushButton_clicked()
 {
-    if (ui->videoPathLineEdit->text().isEmpty())
-    {
-        QMessageBox::warning(this, "Внимание", "Не указан путь!");
-        return;
-    }
+    //    if (ui->videoPathLineEdit->text().isEmpty())
+    //    {
+    //        QMessageBox::warning(this, "Внимание", "Не указан путь!");
+    //        return;
+    //    }
     cameraServer->requestVideoFromCamera(ui->streamPortSpinBox->value(), ui->durationSpinBox->value(), ui->compressCheckBox->isChecked(), currentCamera,  ui->videoPathLineEdit->text());
 }
 
@@ -474,7 +488,7 @@ void CameraOptionsWindow::on_frameRateHorizontalSlider_valueChanged(int value)
 void CameraOptionsWindow::on_autoMinGainSpinBox_editingFinished()
 {
     CameraOptions opt;
-    opt.autoExpParams.minGainCoeff = (double)ui->autoMinGainSpinBox->value() / 100.0 * 255.0; //tmp
+    opt.autoExpParams.minGainCoeff = (double)ui->autoMinGainSpinBox->value(); //tmp
     cameraServer->sendParametersToCamera(opt, currentCamera);
 }
 
@@ -482,7 +496,7 @@ void CameraOptionsWindow::on_autoMinGainSpinBox_editingFinished()
 void CameraOptionsWindow::on_autoMaxGainSpinBox_editingFinished()
 {
     CameraOptions opt;
-    opt.autoExpParams.maxGainCoeff = (double)ui->autoMaxGainSpinBox->value() / 100.0 * 255;// tmp
+    opt.autoExpParams.maxGainCoeff = (double)ui->autoMaxGainSpinBox->value();// tmp
     cameraServer->sendParametersToCamera(opt, currentCamera);
 }
 
@@ -762,7 +776,6 @@ void CameraOptionsWindow::on_triggerModeGroupBox_clicked(bool checked)
     }
     else
     {
-        qDebug() << "qq";
         opt.triggerMode = IS_SET_TRIGGER_OFF;
     }
     cameraServer->sendParametersToCamera(opt, currentCamera);
@@ -832,12 +845,6 @@ void CameraOptionsWindow::on_corrDoubleSpinBox_editingFinished()
     cameraServer->sendParametersToCamera(opt, currentCamera);
 }
 
-void CameraOptionsWindow::on_skoCountSpinBox_editingFinished()
-{
-    CameraOptions opt;
-    opt.recParams.skoCoef = ui->skoCountSpinBox->value();
-    cameraServer->sendParametersToCamera(opt, currentCamera);
-}
 
 void CameraOptionsWindow::on_searchAreaSizeSpinBox_editingFinished()
 {
@@ -907,6 +914,10 @@ void CameraOptionsWindow::on_enableRecognizeCheckBox_toggled(bool checked)
     CameraOptions opt;
     opt.ballRecognizeFlag = checked;
     cameraServer->sendParametersToCamera(opt, currentCamera);
+    if (!checked)
+    {
+        cameraServer->clearRecognizeData();
+    }
 }
 
 void CameraOptionsWindow::on_ballRecognizeStepSpinBox_editingFinished()
@@ -938,21 +949,32 @@ void CameraOptionsWindow::on_checkSynchroPushButton_clicked()
 
 void CameraOptionsWindow::on_checkSyncPushButton_clicked()
 {
-    sync->blockSignals(true);
-    if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 1))
+    if (sync->isConnected())
     {
-        if (sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1))
+        sync->blockSignals(true);
+        if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 1))
         {
-            cameraServer->checkSync();
-            QTimer::singleShot(500, this, [this]()
+            if (sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1))
             {
-                sync->sendCommand(Synchronizer::SynchronizerProtocol::StopSync, 0x1);
-            }
-            );
+                QThread::msleep(100);
+                cameraServer->checkSync();
+                QTimer::singleShot(500, this, [this]()
+                {
+                    sync->sendCommand(Synchronizer::SynchronizerProtocol::StopSync, 0x1);
+                    sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 60);
+                    sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1);
+                }
+                );
 
+            }
         }
+        sync->blockSignals(false);
     }
-    sync->blockSignals(false);
+    else
+    {
+        QMessageBox::warning(this, "Внимание", "Включите блок синхронизации!");
+    }
+
 }
 
 
@@ -987,21 +1009,11 @@ void CameraOptionsWindow::on_chooseReferenceFramePushButton_clicked()
     }
 }
 
-void CameraOptionsWindow::on_choosePointsListPushButton_clicked()
-{
-    QString fileName = QFileDialog::getOpenFileName(this, tr("Open File"),
-                                                    "/home",
-                                                    tr(""));
-    if (!fileName.isEmpty())
-    {
-        ui->pointListLineEdit->setText(fileName);
-    }
-}
+
 
 void CameraOptionsWindow::on_showPushButton_clicked()
 {
-    if (ui->referenceFrameLineEdit->text().isEmpty()
-            || ui->pointListLineEdit->text().isEmpty())
+    if (ui->referenceFrameLineEdit->text().isEmpty())
     {
         QMessageBox::warning(this, "Внимание", "Не указан один из путей");
     }
@@ -1016,7 +1028,11 @@ void CameraOptionsWindow::on_showPushButton_clicked()
         {
             Mat fullFrame = Mat(Size(1936, 1216), CV_8UC3);
             frame.copyTo(fullFrame(Rect(0, 0, 1920, 1080)));
-            Mat img = calibAdjustHelper.createCalibrateImage(ui->referenceFrameLineEdit->text(), ui->pointListLineEdit->text(), frame, ui->patterWidthSpinBox->value());
+            Mat img = calibAdjustHelper.createCalibrateImage(ui->referenceFrameLineEdit->text(),
+                                                             ui->streamPortSpinBox->value(),
+                                                             frame, ui->patterWidthSpinBox->value(),
+                                                             ui->searchWidthSpinBox->value(),
+                                                             ui->searchHeightSpinBox->value());
             emit correlatedImageReady(img, currentCamera);
         }
     }
@@ -1036,7 +1052,132 @@ void CameraOptionsWindow::on_calibratePushButton_clicked()
     Calibration::ExteriorOr eOr, nEOr;
     Calibration::SpacecraftPlatform::CAMERA::CameraParams cam, nCam;
 
-    CalibrationAdjustHelper::readCurrentCalibrationParameters(ui->streamPortSpinBox->value(), "/home/nvidia/actual_server/server_debug/calibrate", eOr, cam);
-    calibAdjustHelper.recalibrate(excludePoints, eOr,  cam, nEOr, nCam);
-    // сохранить эталлонный кадр, новую калибровку, к старой оставить бэкап
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(ui->streamPortSpinBox->value(),
+                                                              "calibrate/", eOr, cam);
+    calibAdjustHelper.recalibrate(excludePoints, eOr,  cam, nEOr, nCam, true);
+}
+
+void CameraOptionsWindow::on_debounceEnableGroupBox_toggled(bool arg1)
+{
+    CameraOptions opt;
+    opt.debounceEnable = arg1;
+    cameraServer->sendParametersToCamera(opt, currentCamera);
+}
+
+void CameraOptionsWindow::on_debounceSpinBox_editingFinished()
+{
+    CameraOptions opt;
+    opt.debounceValue = ui->debounceSpinBox->value();
+    cameraServer->sendParametersToCamera(opt, currentCamera);
+}
+
+void CameraOptionsWindow::on_saveCameraSettingsPushButton_clicked()
+{
+    cameraServer->saveCameraSettings(currentCamera);
+}
+
+void CameraOptionsWindow::on_skoCountDoubleSpinBox_editingFinished()
+{
+    CameraOptions opt;
+    opt.recParams.skoCoef = ui->skoCountDoubleSpinBox->value();
+    cameraServer->sendParametersToCamera(opt, currentCamera);
+}
+
+\
+
+void CameraOptionsWindow::on_fullPictureCheckBox_clicked(bool checked)
+{
+    auto& av = ApproximationVisualizer::instance();
+    av.createfullPicture(checked);
+}
+
+void CameraOptionsWindow::on_shortPictureCheckBox_clicked(bool checked)
+{
+    auto& av = ApproximationVisualizer::instance();
+    av.createshortPicture(checked);
+}
+
+void CameraOptionsWindow::on_turnOnSyncFrameEveryCheckBox_toggled(bool checked)
+{
+    ApproximationVisualizer::instance().clearCalibGraphs();
+    cameraServer->enableAutoCalibrate(checked, ui->syncFrameEverySpinBox->value(),
+                                      ui->updateEVOAutoCalibrateCheckBox->isChecked(),
+                                      flag);
+}
+
+void CameraOptionsWindow::loadSettings()
+{
+    QSettings settings;
+    ui->turnOnSyncFrameEveryCheckBox->setChecked(settings.value("sync_frame_flag", false).toBool());
+    ui->syncFrameEverySpinBox->setValue(settings.value("sync_frame_every", 10).toInt());
+
+    flag = (CompareFlag)settings.value("compare_flag", CompareFlag::None).toInt();
+    if (flag == None)
+    {
+        ui->compareNeibRadioButton->setChecked(true);
+    }
+    else if (flag == Reference)
+    {
+        ui->compareReferenceRadioButton->setChecked(true);
+    }
+    else
+    {
+        ui->compareCurrentRadioButton->setChecked(true);
+    }
+    cameraServer->enableAutoCalibrate(ui->turnOnSyncFrameEveryCheckBox->isChecked(),
+                                      ui->syncFrameEverySpinBox->value(),
+                                      ui->updateEVOAutoCalibrateCheckBox->isChecked(),
+                                      flag);
+    ApproximationVisualizer& av = ApproximationVisualizer::instance();
+    av.createfullPicture(settings.value("big_picture", true).toBool());
+    ui->fullPictureCheckBox->setChecked(av.isfullPicture());
+    av.createshortPicture(settings.value("small_picture", true).toBool());
+    ui->shortPictureCheckBox->setChecked(av.isshortPicture());
+    av.setUpdateGraph(settings.value("update_graph", true).toBool());
+    ui->updateGraphsCheckBox->setChecked(av.getUpdateGraph());
+    ui->updateEVOAutoCalibrateCheckBox->setChecked(settings.value("update_evo_autocalibrate", false).toBool());
+
+}
+
+void CameraOptionsWindow::saveSettings()
+{
+    QSettings settings;
+    settings.setValue("sync_frame_flag", ui->turnOnSyncFrameEveryCheckBox->isChecked());
+    settings.setValue("sync_frame_every", ui->syncFrameEverySpinBox->value());
+    ApproximationVisualizer& av = ApproximationVisualizer::instance();
+
+    settings.setValue("big_picture", av.isfullPicture());
+    settings.setValue("small_picture", av.isshortPicture());
+    settings.setValue("update_graph",  av.getUpdateGraph());
+    settings.setValue("compare_flag", flag);
+    settings.setValue("update_evo_autocalibrate", ui->updateEVOAutoCalibrateCheckBox->isChecked());
+
+}
+
+void CameraOptionsWindow::on_updateGraphsCheckBox_toggled(bool checked)
+{
+    auto& av = ApproximationVisualizer::instance();
+    av.setUpdateGraph(checked);
+}
+
+void CameraOptionsWindow::on_turnOnRecogAllCamerasCheckBox_toggled(bool checked)
+{
+    cameraServer->enableRecognitionAll(checked);
+}
+
+
+
+void CameraOptionsWindow::on_compareCurrentRadioButton_toggled(bool checked)
+{
+    flag = Current;
+}
+
+void CameraOptionsWindow::on_compareReferenceRadioButton_toggled(bool checked)
+{
+    flag = Reference;
+}
+
+void CameraOptionsWindow::on_compareNeibRadioButton_toggled(bool checked)
+{
+    flag = None;
 }

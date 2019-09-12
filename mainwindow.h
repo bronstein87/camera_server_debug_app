@@ -12,6 +12,7 @@
 #include <cameraoptionswindow.h>
 #include <serveroptionswindow.h>
 #include <calibrationadjusthelper.h>
+#include <approximationvisualizer.h>
 
 class CameraOptionsWindow;
 struct CameraGUIInfo
@@ -34,19 +35,22 @@ public:
     ~MainWindow();
 
 signals:
-    //currentCameraChanged(QTcpSocket* cam);
+
 
 private slots:
 
 
-    void on_serverStartAction_triggered();
+    void on_startServerToolButton_clicked();
 
-    void on_openOptionsAction_triggered();
+    void on_cameraOptionsToolButton_clicked();
 
-    void on_serverOptionsAction_triggered();
+    void on_serverOptionsToolButton_clicked();
 
+    void on_plotHorizontalSlider_sliderMoved(int position);
 
-    void on_pushButton_clicked();
+    void on_applyFirstCalibToolButton_clicked();
+
+    void on_applySecondCalibToolButton_clicked();
 
 private:
 
@@ -56,10 +60,10 @@ private:
     QScopedPointer <Synchronizer> sync;
     CameraOptionsWindow* optionsWindow = nullptr;
     ServerOptionsWindow* serverOptionsWindow = nullptr;
-    EditFrameQGraphicsScene scene;
     cv::Mat img;
     QImage* imgIn;
     CalibrationAdjustHelper helper;
+
 
 
 

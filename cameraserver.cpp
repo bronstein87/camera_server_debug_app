@@ -1,9 +1,11 @@
 #include "cameraserver.h"
-
+using namespace cv;
 CameraServer::CameraServer(QObject *parent) : QObject(parent), commandServer(new QTcpServer(this)),
     avaliableCommands {SendCameraParams, RequestCameraVideo, RequestCameraFrame, ReadyToGetStream,
                        IsServerPrepareToGetStream, GetBaseBallCoordinates,
-                       GetTestDataFromClient, StartStream, StopStream, RestartCamera, AskCurrentCameraParams, SendCurrentFrame, EndOfMessageSign}
+                       GetTestDataFromClient, StartStream, StopStream, RestartCamera, AskCurrentCameraParams,
+                       SendCurrentFrame, SendSaveParameters, SendRecognizeVideo,
+                       EndOfMessageSign}
 {
     connect(commandServer.data(), &QTcpServer::newConnection, this, &CameraServer::handleNewConnection);
     connect(commandServer.data(), &QTcpServer::acceptError, this, [this](auto errorCode)
@@ -17,8 +19,37 @@ CameraServer::CameraServer(QObject *parent) : QObject(parent), commandServer(new
         cameras[socket].streamIsActive = false;
         QByteArray data;
         data.append(StopStream);
-        data.append(EndOfMessageSign);
+        this->fillEndOfMessage(data);
         socket->write(data);
+    });
+
+    connect(&frameEveryTimer, &QTimer::timeout, this, [this]()
+    {
+        if (autoCalibrate)
+        {
+            syncFrame(JustLast, true);
+            QTimer::singleShot(500, this, [this]()
+            {
+                CalibrationAdjustHelper adjustHelper;
+                QMutexLocker lock(&autoCalibrateMutex);
+                QMap <qint32, Calibration::ExteriorOr> map;
+                Calibration::ExteriorOr newEO;
+                Calibration::SpacecraftPlatform::CAMERA::CameraParams newCamera;
+                adjustHelper.setSaveAutoCalibrate(updateAutoCalibrate);
+                adjustHelper.setCompareFlag(compareFlag);
+                for (auto& i : cameras.keys())
+                {
+                    adjustHelper.autoCalibrate(i, cameras[i].curParams.portSendStream, this, newEO, newCamera);
+                    map.insert(cameras[i].curParams.portSendStream, newEO);
+                }
+
+                lock.unlock();
+                ApproximationVisualizer& av = ApproximationVisualizer::instance();
+                av.plotCalibrate(map, compareFlag);
+            });
+
+
+        }
     });
 }
 
@@ -27,14 +58,14 @@ void CameraServer::handleNewConnection()
     calibrate = false;
     QTcpSocket* clientConnection = commandServer->nextPendingConnection();
     emit connectedCameraSocket(clientConnection);
-    qDebug() << clientConnection;
     cameras.insert(clientConnection, CameraStatus());
     QHostAddress address = clientConnection->peerAddress();
-    qint16 port = clientConnection->peerPort();
+    quint16 port = clientConnection->peerPort();
     connect(clientConnection, &QAbstractSocket::disconnected,
             this, [this, clientConnection, address, port]() {
         calibrate = false;
         cameras.remove(clientConnection);
+
         emit  readyMessageFromServer(QString("Lost connection with: %1 : %2\n")
                                      .arg(address.toString())
                                      .arg(port), clientConnection);
@@ -44,7 +75,7 @@ void CameraServer::handleNewConnection()
     });
 
     connect(clientConnection, &QTcpSocket::readyRead, this, [this, clientConnection]() {handleMessageFromCamera(clientConnection);});
-
+    qDebug() << clientConnection->peerAddress().toString().remove("::ffff:");
     emit readyMessageFromServer(QString("New connection: %1 : %2\n")
                                 .arg(address.toString())
                                 .arg(port), clientConnection);
@@ -104,7 +135,7 @@ void CameraServer::syncVideo(const QString& dir, bool compress)
                           .arg(i.value().curParams.portSendStream));
         QByteArray data;
         data.append(RequestCameraVideo);
-        data.append(EndOfMessageSign);
+        fillEndOfMessage(data);
         i.key()->write(data);
     }
 
@@ -121,13 +152,19 @@ void CameraServer::checkSync()
             ++waitFor;
             if (waitFor == 2)
             {
-                qDebug() <<  "GOT SYNC TIME" << cameras.first().syncTime << cameras.last().syncTime
-                          << (qint64)cameras.first().syncTime - (qint64)cameras.last().syncTime << cameras.first().machineSyncTime << cameras.last().machineSyncTime
-                          << abs(cameras.first().machineSyncTime.msecsTo(cameras.last().machineSyncTime));
-                if (abs(cameras.first().machineSyncTime.msecsTo(cameras.last().machineSyncTime)) < machineTimeEpsilon)
+                qint32 delta = abs(cameras.first().machineSyncTime.msecsTo(cameras.last().machineSyncTime));
+                //                qDebug() <<  "GOT SYNC TIME" << cameras.first().syncTime << cameras.last().syncTime
+                //                          << (qint64)cameras.first().syncTime - (qint64)cameras.last().syncTime << cameras.first().machineSyncTime << cameras.last().machineSyncTime
+                //                          << delta;
+                if (delta < machineTimeEpsilon)
                 {
                     syncTime = (qint64)cameras.first().syncTime - (qint64)cameras.last().syncTime;
                     calibrate = true;
+                    for (auto& i : cameras.keys())
+                    {
+                        emit readyMessageFromServer(QString("Время успешно синхронизировано, дельта = %1 мс")
+                                                    .arg(delta), i);
+                    }
                 }
                 else
                 {
@@ -148,13 +185,13 @@ void CameraServer::checkSync()
         while (i.hasNext())
         {
             i.next();
-            QtConcurrent::run(this, &CameraServer::getFrameInternal, i.key(),
-                              i.value().curParams.portSendStream, QString("test%2_%1.bmp")
-                              .arg(i.value().curParams.portSendStream)
-                              .arg(QTime::currentTime().toString(Qt::ISODate)), true);
+            QtConcurrent::run(std::bind(&CameraServer::getFrameInternal, this, i.key(),
+                                        i.value().curParams.portSendStream, QString("test%2_%1.bmp")
+                                        .arg(i.value().curParams.portSendStream)
+                                        .arg(QTime::currentTime().toString(Qt::ISODate)), true, All, false));
             QByteArray data;
             data.append(RequestCameraFrame);
-            data.append(EndOfMessageSign);
+            fillEndOfMessage(data);
             i.key()->write(data);
         }
     }
@@ -163,109 +200,197 @@ void CameraServer::checkSync()
 
 }
 
-void CameraServer::syncFrame()
+void CameraServer::syncFrame(AppendFrameRule rule, bool dontSetStream)
 {
     QMapIterator<QTcpSocket*, CameraStatus> i(cameras);
     while (i.hasNext())
     {
-
         i.next();
-
-        QtConcurrent::run(this, &CameraServer::getFrameInternal, i.key(),
-                          i.value().curParams.portSendStream, QString("test%2_%1.bmp")
-                          .arg(i.value().curParams.portSendStream)
-                          .arg(QTime::currentTime().toString(Qt::ISODate)), true);
+        QtConcurrent::run(std::bind(&CameraServer::getFrameInternal, this, i.key(),
+                                    i.value().curParams.portSendStream, QString("test%2_%1.bmp")
+                                    .arg(i.value().curParams.portSendStream)
+                                    .arg(QTime::currentTime().toString("hh_mm_ss")), true, rule, dontSetStream));
         QByteArray data;
         data.append(RequestCameraFrame);
-        data.append(EndOfMessageSign);
+        fillEndOfMessage(data);
         i.key()->write(data);
     }
 }
 
-void CameraServer::testApproximation(const QString &fCameraPath, const QString &sCameraPath, QGraphicsPixmapItem* item)
+void CameraServer::testApproximation(const QString &filePath, BallApproximator& approx, const QString& prefix)
 {
 
-    QFile fCameraPoints(fCameraPath);
-    Calibration::ExteriorOr EO_4510_left;
-    Calibration::SpacecraftPlatform::CAMERA::CameraParams Camera_4510_left;
+    QFile file(filePath);
+    Calibration::ExteriorOr EOFirstCamera;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraFirst;
 
-    CalibrationAdjustHelper::readCurrentCalibrationParameters(4510, "/home/nvidia/actual_server/server_debug/calibrate", EO_4510_left, Camera_4510_left);
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(4510, "calibrate", EOFirstCamera, cameraFirst);
 
-    QStringList orientParams;
-    QVector <QStringList> points;
-    if (fCameraPoints.open(QIODevice::ReadOnly))
+    QVector <QStringList>* points;
+    QVector <QStringList> points1;
+    QVector <QStringList> points2;
+    QVector <Calibration::Position> secondVecs;
+    QVector <double> secondTime;
+    QVector <Calibration::Position> firstVecs;
+    QVector <double> firstTime;
+    if (file.open(QIODevice::ReadOnly))
     {
-        QTextStream in(&fCameraPoints);
+        QTextStream in(&file);
         QString line;
+
         while (in.readLineInto(&line))
         {
-            points.append(line.split(" "));
+            if (line.toInt() == 3850)
+            {
+                points = &points2;
+                continue;
+            }
+            else if (line.toInt() == 4510)
+            {
+                points = &points1;
+                continue;
+            }
+            (*points).append(line.split(" "));
         }
+    }
+    else
+    {
+        qDebug() << file.errorString();
     }
 
 
-    QVector <Calibration::Position> firstVecs;
-    QVector <double> firstTime;
+
     Calibration::RayAndPoint rp;
     Calibration::Position2D XYpix_left;
 
     const double divideTime = 10000000.0;
-    for (qint32 i = 0; i < points.size(); ++i)
+    for (qint32 i = 0; i < points1.size(); ++i)
     {
-        XYpix_left.X = points[i][0].toDouble();
-        XYpix_left.Y = points[i][1].toDouble();
-        Calibration::GetRayAndPoint(EO_4510_left, Camera_4510_left, XYpix_left, rp);
-        qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z ;
+        XYpix_left.X = points1[i][0].toDouble();
+        XYpix_left.Y = points1[i][1].toDouble();
+        Calibration::GetRayAndPoint(EOFirstCamera, cameraFirst, XYpix_left, rp);
+        qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points1[i][2].toDouble()/ divideTime, 'g', 10);
+        qint64 time = points1[i][2].toLongLong();
+
         firstVecs.append(rp.Vect);
-        firstTime.append(points[i][2].toDouble() / divideTime);
-
-    }
-
-
-    QFile sCameraPoints(sCameraPath);
-
-    orientParams.clear();
-    QVector <QStringList> points2;
-    if (sCameraPoints.open(QIODevice::ReadOnly))
-    {
-        QTextStream in(&sCameraPoints);
-        QString line;
-        while (in.readLineInto(&line))
+        if (points1[i][3].toInt())
         {
-            points2.append(line.split(" "));
+            firstTime.append((double)time / divideTime);
         }
+        else
+        {
+            firstTime.append(-(double)time / divideTime);
+        }
+
     }
 
+    Calibration::ExteriorOr EOSecondCamera;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraSecond;
 
-    Calibration::ExteriorOr EO_3850_right;
-    Calibration::SpacecraftPlatform::CAMERA::CameraParams Camera_3850_right;
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(3850, "calibrate", EOSecondCamera, cameraSecond);
 
-    CalibrationAdjustHelper::readCurrentCalibrationParameters(3850, "/home/nvidia/actual_server/server_debug/calibrate", EO_3850_right, Camera_3850_right);
-
-
-    QVector <Calibration::Position> secondVecs;
-    QVector <double> secondTime;
     Calibration::Position2D XYpix_right;
     for (qint32 i = 0; i < points2.size(); ++i)
     {
         XYpix_right.X = points2[i][0].toDouble();
         XYpix_right.Y = points2[i][1].toDouble();
-        Calibration::GetRayAndPoint(EO_3850_right, Camera_3850_right, XYpix_right, rp);
-        qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z ;
+        Calibration::GetRayAndPoint(EOSecondCamera, cameraSecond, XYpix_right, rp);
+        qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points2[i][2].toDouble()/ divideTime, 'g', 10);
+        qint64 time = points2[i][2].toLongLong();
         secondVecs.append(rp.Vect);
-        secondTime.append((double)points2[i][2].toDouble() / divideTime);
+        if (points2[i][3].toInt())
+        {
+            secondTime.append((double)time / divideTime);
+        }
+        else
+        {
+            secondTime.append(-(double)time / divideTime);
+        }
+
+        //        else
+        //        {
+        //            secondVecs.append(rp.Vect);
+        //            secondTime.append(-1);
+        //        }
     }
 
-    BallApproximator approx;
-    std::reverse(firstVecs.begin(), firstVecs.end());
-    std::reverse(secondVecs.begin(), secondVecs.end());
-    std::reverse(firstTime.begin(), firstTime.end());
-    std::reverse(secondTime.begin(), secondTime.end());
-    approx.readData(firstVecs, secondVecs, firstTime, secondTime, EO_4510_left.Point, EO_3850_right.Point);
-    approx.calculateApproximation("/home/nvidia/result.txt", true);
+    //    std::reverse(firstVecs.begin(), firstVecs.end());
+    //    std::reverse(secondVecs.begin(), secondVecs.end());
+    //    std::reverse(firstTime.begin(), firstTime.end());
+    //    std::reverse(secondTime.begin(), secondTime.end());
+    bool repeat = true;
+    while (repeat)
+    {
+        approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+        approx.calculateApproximation(QString("games_%1/results/result_%2.txt")
+                                      .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                      .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+        repeat = false;
+        auto v1 = approx.getFirstErrors();
+        auto v2 = approx.getSecondErrors();
+        if (v1.size() < 5 || v2.size() < 5)
+        {
+            break;
+        }
+        double coef = 0.05;
+        if (v1.first() > coef)
+        {
+            for (qint32 i = 0; i < firstTime.size(); ++i)
+            {
+                if (firstTime[i] > 0)
+                {
+                    firstTime.remove(i);
+                    firstVecs.remove(i);
+                    repeat = true;
+                    break;
+                }
+            }
+        }
+        if (v1.last() > coef)
+        {
+            for (qint32 i = firstTime.size() - 1; i > 0 ; --i)
+            {
+                if (firstTime[i] > 0)
+                {
+                    firstTime.remove(i);
+                    firstVecs.remove(i);
+                    repeat = true;
+                    break;
+                }
+            }
+        }
+
+
+        if (v2.first() > coef)
+        {
+            for (qint32 i = 0; i < secondTime.size(); ++i)
+            {
+                if (secondTime[i] > 0)
+                {
+                    secondTime.remove(i);
+                    secondVecs.remove(i);
+                    repeat = true;
+                    break;
+                }
+            }
+        }
+        if (v2.last() > coef)
+        {
+            for (qint32 i = secondTime.size() - 1; i > 0 ; --i)
+            {
+                if (secondTime[i] > 0)
+                {
+                    secondTime.remove(i);
+                    secondVecs.remove(i);
+                    repeat = true;
+                    break;
+                }
+            }
+        }
+    }
+
     double pos[3], v[3], a[3];
     approx.rotateMovementParameters(pos, v ,a);
-    qDebug() << "finished";
     double xp[3];
     approx.getXNonLinearParameters(xp);
     double yp[3];
@@ -274,18 +399,50 @@ void CameraServer::testApproximation(const QString &fCameraPath, const QString &
     approx.getZNonLinearParameters(zp);
     QVector <Calibration::Position> posXYZ;
     double tin = approx.getTIN();
-    qDebug() << secondTime.size();
-    double deltaT = secondTime[1] - secondTime[0];
+    //double deltaT = secondTime[1] - secondTime[0];
 
     std::reverse(firstVecs.begin(), firstVecs.end());
     std::reverse(secondVecs.begin(), secondVecs.end());
     std::reverse(firstTime.begin(), firstTime.end());
     std::reverse(secondTime.begin(), secondTime.end());
 
+
+    qDebug() << filePath.indexOf(QRegExp("/(?:.(?!/))+$"));
+    QString time = filePath.mid(filePath.indexOf(QRegExp("/(?:.(?!/))+$")) + 1);
+
+
+
+    QFile f3850init(QString("/home/nvidia/work_video/res/plot/3850_%1%2init").arg(time).arg(prefix));
+    f3850init.open(QIODevice::WriteOnly);
+    QTextStream out (&f3850init);
+
     for (int i = 0; i < secondTime.size(); ++i)
     {
         secondTime[i] = secondTime[i] - tin;
     }
+
+    for (int i = 0; i < secondTime.size(); ++i)
+    {
+        Calibration::Position p;
+        double t2 = secondTime[i] * secondTime[i];
+        p.X = xp[0] + xp[1] * (secondTime[i]) + xp[2] * t2;
+        p.Y = yp[0] + yp[1] * (secondTime[i]) + yp[2] * t2;
+        p.Z = zp[0] + zp[1] * (secondTime[i]) + zp[2] * t2;
+        posXYZ.append(p);
+        Calibration::Position2D XY;
+        //Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, XY);
+        Calibration::GetXYfromXYZ(EOSecondCamera, cameraSecond, p, XY);
+        // qDebug() << p.X << p.Y << p.Z << XY.X << XY.Y;
+        //qDebug() << "Point(" << XY.X << "," << XY.Y << "),";
+        out << XY.X << "\t" << XY.Y << endl;
+
+    }
+    f3850init.close();
+
+    QFile f3850(QString("/home/nvidia/work_video/res/plot/3850_%1%2").arg(time).arg(prefix));
+    f3850.open(QIODevice::WriteOnly);
+    out.setDevice(&f3850);
+
     //    for (int i = 0; i < 20; ++i)
     //    {
     //        secondTime.prepend(secondTime.first() + deltaT);
@@ -296,34 +453,6 @@ void CameraServer::testApproximation(const QString &fCameraPath, const QString &
     //        secondTime.append(secondTime.last() - deltaT);
     //    }
 
-    //    for (int i = 0; i < secondTime.size(); ++i)
-    //    {
-    //        Calibration::Position p;
-    //        //double t2 = secondTime[i] < 0 ? -((secondTime[i]) * (secondTime[i])) : ((secondTime[i]) * (secondTime[i]));
-    //        double t2 = secondTime[i] * secondTime[i];
-    //        p.X = xp[0] + xp[1] * (secondTime[i]) + xp[2] * t2;
-    //        p.Y = yp[0] + yp[1] * (secondTime[i]) + yp[2] * t2;
-    //        p.Z = zp[0] + zp[1] * (secondTime[i]) + zp[2] * t2;
-    //        posXYZ.append(p);
-    //        Calibration::Position2D XY;
-    //        //Calibration::GetXYfromXYZ(EO_4510_left, Camera_4510_left, p, XY);
-    //        Calibration::GetXYfromXYZ(EO_3850_right, Camera_3850_right, p, XY);
-    //        // qDebug() << p.X << p.Y << p.Z << XY.X << XY.Y;
-    //        qDebug() << "Point(" << XY.X << "," << XY.Y << "),";
-
-
-    //    }
-
-    Calibration::ExteriorOr eOr;
-    Calibration::SpacecraftPlatform::CAMERA::CameraParams cam;
-    CalibrationAdjustHelper::readCurrentCalibrationParameters(9999, "/home/nvidia/actual_server/server_debug/calibrate", eOr, cam, 1920, 1080);
-    Calibration::Position2D XY;
-
-
-
-
-    QPixmap ball("/home/nvidia/actual_server/server_debug/calibrate/baseball_PNG18979.png");
-
     for (int i = 0; i < secondTime.size(); ++i)
     {
         Calibration::Position p;
@@ -332,83 +461,230 @@ void CameraServer::testApproximation(const QString &fCameraPath, const QString &
         p.X = xp[0] + xp[1] * (secondTime[i]) + xp[2] * t2;
         p.Y = yp[0] + yp[1] * (secondTime[i]) + yp[2] * t2;
         p.Z = zp[0] + zp[1] * (secondTime[i]) + zp[2] * t2;
+        posXYZ.append(p);
+        Calibration::Position2D XY;
+        //Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, XY);
+        Calibration::GetXYfromXYZ(EOSecondCamera, cameraSecond, p, XY);
+        // qDebug() << p.X << p.Y << p.Z << XY.X << XY.Y;
+        //qDebug() << "Point(" << XY.X << "," << XY.Y << "),";
+        out << XY.X << "\t" << XY.Y << endl;
 
-        Calibration::GetXYfromXYZ(eOr, cam, p, XY);
-        qDebug() << XY.X << XY.Y;
-        Calibration::Position2D dXY;
-        dXY = XY;
-        p.X += 0.073;
-        Calibration::GetXYfromXYZ(eOr, cam, p, XY);
-        qDebug() << XY.X << XY.Y << abs(XY.X - dXY.X);
-        qint32 bW = abs(XY.X - dXY.X);
-        p.X -= 0.073;
-        p.Z += 0.073;
-        Calibration::GetXYfromXYZ(eOr, cam, p, XY);
-        qDebug() << XY.X << XY.Y << abs(XY.Y - dXY.Y);
-        qint32 bH = abs(XY.Y - dXY.Y);
-
-        QGraphicsPixmapItem* cItem = new QGraphicsPixmapItem(item);
-
-        QPixmap tmp = ball.copy();
-
-        cItem->setPixmap(tmp.scaled(bW * 2.5, bW * 2.5));
-        cItem->setPos(dXY.X , dXY.Y );
-        qDebug() << "////////////////////" << dXY.X + bW * 2 << dXY.Y + bH * 2 <<ball.isNull();
     }
-    item->pixmap().save("/home/nvidia/actual_server/server_debug/calibrate/pic_tst.jpg", "JPG");
+    f3850.close();
 
 
 
 
-    //    Calibration::Position2D XYpix_left;
-    //    Calibration::Position2D XYpix_right;
-    //    Calibration::Position XYZ;
-    //    //===================================================================  Set EO (xyz_opk in radians)  ===================================================================
-    //    EO_left.Init(-17.991471, -5.003513, 4.498402,Calibration::Deg2Radian(71.565202039601), Calibration::Deg2Radian(-67.699490387514), Calibration::Deg2Radian(-17.151111672969));
-    //    EO_right.Init(-5.011129, -17.996709, 4.503400,Calibration::Deg2Radian(82.603784380449), Calibration::Deg2Radian(-21.118703676195), Calibration::Deg2Radian(-2.667875084203));
-    //    //===================================================================  Set camera   ===================================================================
-    //    Camera_4510.Init("Камера 1", 2.0759815731973223e+01, 5.86, 1980 / 2, 1080 / 2, 1980, 1080, Dir_R, Dir_Z, CamType, DistT);
-    //    Camera_3850.Init("Камера 2", 2.0688352029659185e+01, 5.86, 1980 / 2, 1080 / 2, 1980, 1080, Dir_R, Dir_Z, CamType, DistT);
 
-    //    QVector<Calibration::Position2D> pos_L;
-    //    QVector<baseball::Position2D> pos_R;
-    //    QFile f ("C:/work/ball throw model/coords.txt");
+    QFile f4510init(QString("/home/nvidia/work_video/res/plot/4510_%1%2init").arg(time).arg(prefix));
+    f4510init.open(QIODevice::WriteOnly);
+    out.setDevice(&f4510init);
 
-    //        QTextStream in(&f);
-    //        in.readLine();
-    //        for (int i = 0; i < 16; ++i)
-    //        {
-    //            QString str = in.readLine();
-    //            auto list = str.split("\t", QString::SkipEmptyParts);
 
-    //            pos_L[i].X = list[2].toDouble(); pos_L[i].Y = /*1080 - */list[3].toDouble(); pos_R[i].X = list[0].toDouble(); pos_R[i].Y = /*1080 -*/ list[1].toDouble();
-    //            XYpix_left = pos_L[i]; XYpix_right = pos_R[i];
-    //            Calibration::RayAndPoint rp;
-    //            Calibration::GetRayAndPoint(EO_left, Camera_left, XYpix_left, rp);
-    //Calibration::GetRayAndPoint(EO_right, Camera_right, XYpix_right, rp);
-    //           qDebug() << rp.Pos.X  << rp.Pos.Y << rp.Pos.Z << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z ;
-    //            //======================================================================================================================================
-    //            if (baseball::GetXYZfromXYXY(EO_left, EO_right, Camera_left, Camera_right, XYpix_left, XYpix_right, XYZ))
-    //            {
-    //                //baseball::RayAndPoint rp;
-    //                //qDebug() << "Res: X: " + QString::number(XYZ.X) + " Y: " + QString::number(XYZ.Y) + " Z: " + QString::number(XYZ.Z);
-    //                baseball::Position2D XYpix_check;
-    //                if (baseball::GetXYfromXYZ(EO_left, Camera_left, XYZ, XYpix_check))
-    //                {
-    //                    // qDebug() <<  "Res: delta Xpix: " + QString::number(XYpix_check.X - XYpix_left.X) + " delta Ypix: " + QString::number(XYpix_check.Y - XYpix_left.Y);
-    //                }
-    //                if (baseball::GetXYfromXYZ(EO_right, Camera_right, XYZ, XYpix_check))
-    //                {
-    //                    // qDebug() << " Res: delta Xpix: " + QString::number(XYpix_check.X - XYpix_right.X) + " delta Ypix: " + QString::number(XYpix_check.Y - XYpix_right.Y);
-    //                }
-    //            }
-    //        }
+    for (int i = 0; i < firstTime.size(); ++i)
+    {
+        firstTime[i] = firstTime[i] - tin;
+    }
+
+
+    for (int i = 0; i < firstTime.size(); ++i)
+    {
+        Calibration::Position p;
+        //double t2 = firstTime[i] < 0 ? -((firstTime[i]) * (firstTime[i])) : ((firstTime[i]) * (firstTime[i]));
+        double t2 = firstTime[i] * firstTime[i];
+        p.X = xp[0] + xp[1] * (firstTime[i]) + xp[2] * t2;
+        p.Y = yp[0] + yp[1] * (firstTime[i]) + yp[2] * t2;
+        p.Z = zp[0] + zp[1] * (firstTime[i]) + zp[2] * t2;
+        posXYZ.append(p);
+        Calibration::Position2D XY;
+        Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, XY);
+        // Calibration::GetXYfromXYZ(EOSecondCamera, cameraSecond, p, XY);
+        // qDebug() << p.X << p.Y << p.Z << XY.X << XY.Y;
+        //qDebug() << "Point(" << XY.X << "," << XY.Y << "),";
+        out << XY.X << "\t" << XY.Y  << endl;
+
+
+    }
+    f4510init.close();
+
+    QFile f4510(QString("/home/nvidia/work_video/res/plot/4510_%1%2").arg(time).arg(prefix));
+    f4510.open(QIODevice::WriteOnly);
+    out.setDevice(&f4510);
+
+    //    for (int i = 0; i < 20; ++i)
+    //    {
+    //        firstTime.prepend(firstTime.first() + deltaT);
+    //    }
+    //    //    tin = firstTime.first();
+    //    for (int i = 0; i < 20; ++i)
+    //    {
+    //        firstTime.append(firstTime.last() - deltaT);
+    //    }
+
+    for (int i = 0; i < firstTime.size(); ++i)
+    {
+        Calibration::Position p;
+        //double t2 = firstTime[i] < 0 ? -((firstTime[i]) * (firstTime[i])) : ((firstTime[i]) * (firstTime[i]));
+        double t2 = firstTime[i] * firstTime[i];
+        p.X = xp[0] + xp[1] * (firstTime[i]) + xp[2] * t2;
+        p.Y = yp[0] + yp[1] * (firstTime[i]) + yp[2] * t2;
+        p.Z = zp[0] + zp[1] * (firstTime[i]) + zp[2] * t2;
+        posXYZ.append(p);
+        Calibration::Position2D XY;
+        Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, XY);
+        // Calibration::GetXYfromXYZ(EOSecondCamera, cameraSecond, p, XY);
+        // qDebug() << p.X << p.Y << p.Z << XY.X << XY.Y;
+        //qDebug() << "Point(" << XY.X << "," << XY.Y << "),";
+        out << XY.X << "\t" << XY.Y  << endl;
+
+
+    }
 }
 
+void CameraServer::enableAutoCalibrate(bool flag, qint32 syncFrameEvery, bool save, CompareFlag cFlag)
+{
+    autoCalibrate = flag;
+    updateAutoCalibrate = save;
+    compareFlag = cFlag;
+    frameEveryTimer.stop();
+    frameEveryTimer.setInterval(syncFrameEvery * 1e3);
+    frameEveryTimer.start();
+}
 
+void CameraServer::enableRecognitionAll(bool flag)
+{
+    for (auto& i : cameras.keys())
+    {
+        CameraOptions opt;
+        opt.ballRecognizeFlag = flag;
+        sendParametersToCamera(opt, i);
+        if (!flag)
+        {
+            clearRecognizeData();
+        }
+    }
+}
+
+bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, double points1[maxNumberOfMeasures][measureDim], qint32 size1, qint32 sNum, double points2[maxNumberOfMeasures][measureDim], qint32 size2)
+{
+    Calibration::ExteriorOr EOFirstCamera;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraFirst;
+    Calibration::ExteriorOr EOSecondCamera;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraSecond;
+    QMutexLocker lock(&autoCalibrateMutex);
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(fNum, "calibrate", EOFirstCamera, cameraFirst);
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(sNum, "calibrate", EOSecondCamera, cameraSecond);
+    lock.unlock();
+
+    QVector <Calibration::Position> secondVecs;
+    QVector <double> secondTime;
+    QVector <Calibration::Position> firstVecs;
+    QVector <double> firstTime;
+
+    Calibration::RayAndPoint rp;
+    Calibration::Position2D XYpix_left;
+
+    //const double divideTime = 10000000.0;
+    for (qint32 i = 0; i < size1; ++i)
+    {
+        XYpix_left.X = points1[i][0];
+        XYpix_left.Y = points1[i][1];
+        Calibration::GetRayAndPoint(EOFirstCamera, cameraFirst, XYpix_left, rp);
+        //qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points1[i][2].toDouble()/ divideTime, 'g', 10);
+        double time = points1[i][2];
+        firstVecs.append(rp.Vect);
+        if (qFuzzyCompare(points1[i][3], 1))
+        {
+            firstTime.append(time);
+        }
+        else
+        {
+            firstTime.append(-time);
+        }
+
+    }
+
+    Calibration::Position2D XYpix_right;
+    for (qint32 i = 0; i < size2; ++i)
+    {
+        XYpix_right.X = points2[i][0];
+        XYpix_right.Y = points2[i][1];
+        Calibration::GetRayAndPoint(EOSecondCamera, cameraSecond, XYpix_right, rp);
+        //qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points2[i][2].toDouble(), 'g', 10);
+        double time = points2[i][2];
+        secondVecs.append(rp.Vect);
+        if (qFuzzyCompare(points2[i][3], 1))
+        {
+            secondTime.append(time);
+        }
+        else
+        {
+            secondTime.append(-time);
+        }
+    }
+
+    approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+    approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                  .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                  .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+
+    auto v1 = approx.getFirstErrors();
+    //qDebug() << "error1" << v1;
+    double coef = 0.05;
+    bool repeat = false;
+    while (v1.size() > 0 && v1.first() > coef)
+    {
+        firstTime.removeFirst();
+        firstVecs.removeFirst();
+        v1.removeFirst();
+        repeat = true;
+    }
+    while (v1.size() > 0  && v1.last() > coef)
+    {
+        firstTime.removeLast();
+        firstVecs.removeLast();
+        v1.removeLast();
+        repeat = true;
+    }
+    auto v2 = approx.getSecondErrors();
+    //qDebug() << "error2" << v2;
+    while ( v2.size() > 0  &&  v2.first() > coef)
+    {
+        secondTime.removeFirst();
+        secondVecs.removeFirst();
+        v2.removeFirst();
+        repeat = true;
+    }
+    while ( v2.size() > 0 && v2.last() > coef)
+    {
+        secondTime.removeLast();
+        secondVecs.removeLast();
+        v2.removeLast();
+        repeat = true;
+    }
+    if  (v1.size() <= 4 || v2.size() <= 4)
+    {
+        for (auto& i : cameras.keys())
+        {
+            emit readyMessageFromServer("После отбраковки осталось слишком мало измерений. Бросок не будет обработан", i);
+        }
+        return false;
+    }
+    if (repeat)
+    {
+        approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+        approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                      .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                      .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+
+    }
+
+    return true;
+}
 void CameraServer::correctSyncTime()
 {
-    if (cameras.size() == 2)
+    if (cameras.first().times.size() > 0
+            && cameras.last().times.size() > 0)
     {
         //qDebug() << "TIME SIZES" << cameras.first().times.size() << cameras.last().times.size();
         quint64 timeToSearch = cameras.first().times[cameras.first().times.size() / 2] - syncTime;
@@ -418,7 +694,7 @@ void CameraServer::correctSyncTime()
             auto diff =  (qint64)timeToSearch - (qint64)times[i];
             if (abs(diff) < syncTimeEpsilon)
             {
-                qDebug() << "NEW OLD SYNC TIME " << syncTime << syncTime + diff;
+                //qDebug() << "NEW OLD SYNC TIME " << syncTime << syncTime + diff;
                 syncTime = syncTime + diff;
             }
             //qDebug() << timeToSearch << times[i] << abs(diff) << syncTimeEpsilon;
@@ -431,178 +707,222 @@ void CameraServer::correctSyncTime()
 
 void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
 {
-    auto buffer = cameras[camera].buffer;
-    buffer.append(camera->readAll());
-    //auto hexBuffer = buffer.toHex();
-
-    if (avaliableCommands.contains(buffer[0]) &&
-            buffer[buffer.size() - 1] == EndOfMessageSign)
+    QByteArray& buffer = cameras[camera].buffer;
+    bool read = true;
+    QByteArray endOfMessage;
+    fillEndOfMessage(endOfMessage);
+    while (read)
     {
-        qint32 packageFeature = buffer[0];
-        auto clearData = buffer.remove(0, 1).remove(buffer.size() - 1, 1);
+        buffer.append(camera->readAll());
+        qint32 pos = buffer.indexOf(endOfMessage);
+        if (avaliableCommands.contains(buffer[0]) &&
+                pos != -1)
+        {
+            qint32 packageFeature = buffer[0];
+            qint32 size = pos - 1;
+            auto clearData = buffer.remove(0, 1).remove(pos - 1, endOfMessage.size());
 
-        switch (packageFeature)
-        {
-        case GetTestDataFromClient:
-            emit readyMessageFromServer(QString("Data from: %1 : %2\n")
-                                        .arg(camera->peerAddress().toString())
-                                        .arg(QString(clearData)), camera);
-            break;
-        case GetBaseBallCoordinates:
-            emit readyMessageFromServer(QString("Baseball coordinates!"), camera);
-            break;
-        case IsServerPrepareToGetStream:
-            emit readyMessageFromServer(QString("Do we ready to get stream?"), camera);
-            break;
-        case AskCurrentCameraParams:
-        {
-            CurrentCameraParams curParams;
-            memcpy(&curParams, clearData.data(), sizeof(CurrentCameraParams));
-            cameras[camera].curParams = curParams;
-            emit currentCameraParamsReady(camera, curParams);
-            break;
-        }
-        case SendCurrentFrame:
-        {
-            quint64 time;
-            memcpy(&time, clearData.data(), sizeof(quint64));
-            cameras[camera].times.append(time);
-            if (cameras[camera].times.size() >= correctSyncTimeEvery
-                    && cameras.size() == 2 && calibrate)
+            switch (packageFeature)
             {
-                correctSyncTime();
-            }
-        }
+            case GetTestDataFromClient:
+                emit readyMessageFromServer(QString("Data from: %1 : %2\n")
+                                            .arg(camera->peerAddress().toString())
+                                            .arg(QString(clearData.mid(0, size))), camera);
+                break;
+            case GetBaseBallCoordinates:
+            {
+                RecognizeData data;
+                RecognizeVideoData vData;
+                quint32 size =  maxNumberOfMeasures * measureDim * sizeof(double);
+                memcpy(data.data, buffer.data(), size);
+                memcpy(&vData.startTime, ((char*)data.data + size  - sizeof(QTime) - sizeof(qint32)),  sizeof(QTime));
+                data.startTime = vData.startTime;
+                memcpy(&vData.frameCount, ((char*)data.data + size - sizeof(qint32)),  sizeof(qint32));
+                memcpy(&data.size, static_cast <char*> (buffer.data()) + size, sizeof(qint32));
 
+                QFile savef(QString("games_%2/results/points%1_%2")
+                            .arg(cameras[camera].curParams.portSendStream)
+                            .arg(QDate::currentDate().toString("dd_MM_yyyy")));
+                savef.open(QIODevice::Append);
+                QTextStream out(&savef);
+                out << cameras[camera].curParams.portSendStream << "\t" << vData.startTime.toString() << endl;
+                for (qint32 i = 0; i < data.size; ++i)
+                {
+                    quint64 timeStamp = data.data[i][2] * 1e7;
+                    quint64 timeStampOld = timeStamp;
+                    correctCameraTime(timeStamp, camera);
+                    data.data[i][2] = (double)timeStamp / 1e7;
+                    out <<  data.data[i][0] << "\t" << data.data[i][1] << "\t" << QString::number(data.data[i][2], 'g', 10)
+                            << "\t" << data.data[i][3] << "\t" << timeStamp  << "\t" << timeStampOld << endl;
+                }
+                out << endl << endl;
+                cameras[camera].recData.append(data);
+                cameras[camera].recVideoData.append(vData);
+                checkRecognizeResults();
+                break;
+            }
+            case SendRecognizeVideo:
+            {
+                auto& v = cameras[camera].recVideoData.first();
+                for (qint32 i = 0; i < v.frameCount; ++i)
+                {
+                    quint64 time;
+                    memcpy(&time, buffer.data() + i * sizeof(quint64), sizeof(quint64));
+                    v.times.append(time);
+                }
+                QtConcurrent::run(this, &CameraServer::receiveRecognizeVideo, camera);
+                break;
+            }
+            case IsServerPrepareToGetStream:
+                emit readyMessageFromServer(QString("Do we ready to get stream?"), camera);
+                break;
+            case AskCurrentCameraParams:
+            {
+                CurrentCameraParams curParams;
+                memcpy(&curParams, clearData.data(), sizeof(CurrentCameraParams));
+                cameras[camera].curParams = curParams;
+                emit currentCameraParamsReady(camera, curParams);
+                break;
+            }
+            case SendCurrentFrame:
+            {
+                quint64 time;
+                memcpy(&time, clearData.data(), sizeof(quint64));
+                cameras[camera].times.append(time);
+                if (cameras[camera].times.size() >= correctSyncTimeEvery
+                        && cameras.size() == 2 && calibrate)
+                {
+                    correctSyncTime();
+                }
+            }
+
+            }
+            buffer.remove(0, size);
         }
+        else
+        {
+            read = false;
+        }
+    }
+
+}
+
+
+void CameraServer::appendFrameToBuffer(cv::Mat frame, QTcpSocket* camera, AppendFrameRule rule)
+{
+    QMutexLocker lock(&streamMutex);
+    if (rule == All || rule == JustQueue)
+    {
+        cameras[camera].frameBuffer.append(frame);
+    }
+    if (rule != JustQueue)
+    {
+        cameras[camera].lastFrame = frame;
+    }
+
+    lock.unlock();
+    if (rule == All || rule == JustQueue)
+    {
+        emit frameFromStreamReady(camera);
     }
 }
 
-
-void CameraServer::appendFrameToBuffer(cv::Mat frame, QTcpSocket* camera)
+void CameraServer::getFrameInternal(QTcpSocket* camera, qint32 port, const QString& path, bool sync = false, AppendFrameRule rule, bool dontSetStream)
 {
     QMutexLocker lock(&streamMutex);
-    cameras[camera].frameBuffer.append(frame);
-    cameras[camera].lastFrame = frame;
-    lock.unlock();
-    emit frameFromStreamReady(camera);
-}
-
-void CameraServer::getFrameInternal(QTcpSocket* camera, qint32 port, const QString& path, bool sync = false)
-{
-    if (!cameras[camera].streamIsActive)
+    if (dontSetStream || !cameras[camera].streamIsActive)
     {
-        if (!cameras[camera].curParams.rawFrame)
+        if (!dontSetStream)
         {
-            //setenv("GST_DEBUG","2", 0);
-            cv::VideoCapture cap(QString("udpsrc port=%1 ! application/x-rtp,media=video, payload=26,encoding-name=JPEG,framerate=30/1 !"
-                                         " rtpjpegdepay ! jpegdec ! videoconvert ! appsink").arg(port).toStdString(),
-                                 cv::CAP_GSTREAMER);
-            cv::Mat frame;
-            if (cap.isOpened())
+            cameras[camera].streamIsActive = true;
+        }
+
+        lock.unlock();
+        QScopedPointer <QTcpServer> server(new QTcpServer());
+        startServerInternal(server.data(), port);
+        qint32 width = cameras[camera].curParams.width;
+        qint32 height = cameras[camera].curParams.height;
+        if (server->waitForNewConnection(10000))
+        {
+            qDebug() << "new client" << server->errorString();
+            auto socket = server->nextPendingConnection();
+
+            QByteArray buffer;
+            QDataStream in(&buffer, QIODevice::ReadOnly);
+            in.device()->reset();
+            //qDebug() << "new conn" << socket;
+            qint32 i = 1;
+            qint32 fullSize = width * height + sizeof(QTime) + sizeof(quint64);
+            while (socket->waitForReadyRead(10000))
             {
-                while (true)
+                while (socket->bytesAvailable() > 0)
                 {
-                    cap.read(frame);
-                    if (!frame.empty())
+                    buffer.append(socket->readAll());
+                    if (buffer.size() >= fullSize)
                     {
-                        cv::Mat forSave;
-                        cv::cvtColor(frame, forSave, CV_RGB2BGR);
+                        in.device()->reset();
+                        cv::Mat matRaw (height, width, CV_8UC1);
+
+                        quint64 intTime;
+                        in.readRawData((char*)&intTime, sizeof(quint64));
+
+                        QTime t;
+                        in.readRawData((char*)&t, sizeof(QTime));
+                        if (sync)
+                        {
+                            //qDebug() << "INT TIME" << intTime;
+                            emit syncTimeGot();
+                            cameras[camera].syncTime = intTime;
+                            cameras[camera].machineSyncTime = t;
+                        }
+
+                        qDebug()<< "read" << in.readRawData((char*)matRaw.data, width * height) << t << intTime;
+                        buffer = buffer.remove(0, fullSize);
+                        Mat mat;
+                        cvtColor(matRaw, mat, CV_BayerBG2BGR);
+                        appendFrameToBuffer(mat, camera, rule);
                         if (!path.isEmpty())
-                            qDebug() << cv::imwrite(path.toStdString(), forSave);
-                        emit finishedGetData(camera);
-                        appendFrameToBuffer(frame, camera);
-                        break;
+                        {
+                            cv::imwrite(path.toStdString(), mat);
+                        }
+                        ++i;
                     }
                 }
+            }
+            server->close();
+            if (!dontSetStream)
+            {
+                cameras[camera].streamIsActive = false;
             }
         }
         else
         {
-            QScopedPointer <QTcpServer> server(new QTcpServer());
-            startServerInternal(server.data(), port);
-            qint32 width = cameras[camera].curParams.width;
-            qint32 height = cameras[camera].curParams.height;
-            if (server->waitForNewConnection(10000))
-            {
-                qDebug() << "new client" << server->errorString();
-                auto socket = server->nextPendingConnection();
-
-                QByteArray buffer;
-                QDataStream in(&buffer, QIODevice::ReadOnly);
-                in.device()->reset();
-                qDebug() << "new conn" << socket;
-                qint32 i = 1;
-                qint32 fullSize = width * height + sizeof(QTime) + sizeof(quint64);
-                while (socket->waitForReadyRead(10000))
-                {
-                    while (socket->bytesAvailable() > 0)
-                    {
-                        buffer.append(socket->readAll());
-                        if (buffer.size() >= fullSize)
-                        {
-                            in.device()->reset();
-                            cv::Mat matRaw (height, width, CV_8UC1);
-
-                            quint64 intTime;
-                            in.readRawData((char*)&intTime, sizeof(quint64));
-
-                            QTime t;
-                            in.readRawData((char*)&t, sizeof(QTime));
-                            if (sync)
-                            {
-                                qDebug() << "INT TIME" << intTime;
-                                emit syncTimeGot();
-                                cameras[camera].syncTime = intTime;
-                                cameras[camera].machineSyncTime = t;
-                            }
-
-                            qDebug()<< "read" << in.readRawData((char*)matRaw.data, width * height) << t << intTime;
-                            buffer = buffer.remove(0, fullSize);
-                            Mat mat;
-                            cvtColor(matRaw, mat, CV_BayerBG2RGB);
-                            appendFrameToBuffer(mat, camera);
-                            if (!path.isEmpty())
-                            {
-                                Mat matBRG;
-                                cvtColor(matRaw,matBRG, CV_BayerBG2BGR);
-                                cv::imwrite(path.toStdString(), matBRG);
-                            }
-                            ++i;
-                        }
-                    }
-                }
-                server->close();
-                //rawStreams.remove(server);
-                //delete server;
-            }
-            else
-            {
-                qDebug() << "ERROR" << server->errorString();
-            }
+            qDebug() << "ERROR" << server->errorString();
         }
 
     }
+}
+
+qint32 CameraServer::correctCameraTime(quint64& intTime, QTcpSocket* camera)
+{
+    if (cameras.firstKey() == camera && cameras.size() > 1 && calibrate)
+    {
+        intTime = intTime - syncTime;
+    }
+    qint32 exposureCenterOffset = (cameras[camera].curParams.exposure / 2) * exposureToCameraIntTime;
+    intTime += exposureCenterOffset;
+
+    return exposureCenterOffset;
 }
 
 void CameraServer::writeRawVideoStream(QTcpSocket* camera, QByteArray& buffer, cv::Mat matRaw, cv::Mat mat, qint32& i, WriteRawVideoData &d)
 {
     d.in.device()->reset();
     quint64 intTime, oldIntTime;
-    d.in.readRawData((char*)&intTime, sizeof(quint64));
+    d.in.readRawData((char*)&intTime, sizeof(qint64));
     oldIntTime = intTime;
-    if (i == correctSyncTimeEvery)
-    {
-        cameras[camera].syncTime = intTime;
-        correctSyncTime();
-        i = 0;
-    }
-    if (cameras.firstKey() == camera)
-    {
-        intTime = intTime - syncTime;
-    }
-    qint32 exposureCenterOffset = (cameras[camera].curParams.exposure / 2) * exposureToCameraIntTime;
-    intTime += exposureCenterOffset;
+
+    qint32 exposureCenterOffset = correctCameraTime(intTime, camera);
     QTime t;
     d.in.readRawData((char*)&t, sizeof(QTime));
     qDebug() <<  camera << "read FRAME" << d.in.readRawData((char*)matRaw.data, d.width * d.height) << t << intTime << oldIntTime << syncTime;
@@ -614,11 +934,103 @@ void CameraServer::writeRawVideoStream(QTcpSocket* camera, QByteArray& buffer, c
     }
     if (cameras[camera].showVideo)
     {
-        cvtColor(matRaw, mat, CV_BayerBG2RGB);
+        cvtColor(matRaw, mat, CV_BayerBG2BGR);
         appendFrameToBuffer(mat, camera);
     }
     d.ints << intTime << "\t" << t.toString("hh:mm:ss.zzz") << "\t" << exposureCenterOffset << "\t" << syncTime << endl;
     ++i;
+}
+
+void CameraServer::receiveRtspVideo(qint32 port, qint32 frameCount, const QString& path, QTcpSocket* camera, const QVector <quint64>& times, QTime throwTime)
+{
+    cameras[camera].streamIsActive = true;
+    QString address = camera->peerAddress().toString().remove("::ffff:");
+    qputenv("GST_DEBUG", "2");
+    qDebug() << QString("rtspsrc location=rtsp://%1:%2/vd latency=0 tcp-timeout=2000000 connection-speed=100000 protocols=GST_RTSP_LOWER_TRANS_TCP "
+                        "! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay ! h265parse "
+                        "! avdec_h265 ! videoconvert ! appsink sync = false")
+                .arg(address)
+                .arg(port);
+
+    cv::VideoCapture cap(QString("rtspsrc location=rtsp://%1:%2/vd latency=0 tcp-timeout=2000000 connection-speed=100000 protocols=GST_RTSP_LOWER_TRANS_TCP "
+                                 "! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay ! h265parse "
+                                 "! avdec_h265 ! videoconvert ! appsink sync = false")
+                         .arg(address)
+                         .arg(port).toStdString(),
+                         cv::CAP_GSTREAMER);
+    //qDebug() << "1" << path << startTime << throwTime;
+    Mat frame;
+    qint32 width = cameras[camera].curParams.width;
+    qint32 height = cameras[camera].curParams.height;
+    qint32 frameRate = cameras[camera].curParams.frameRate;
+    VideoWriter video;
+    bool canWriteVideo = video.open(path.toStdString(), CV_FOURCC('X','V','I','D'), frameRate, Size(width, height));
+    qDebug() << path << throwTime;
+    QFile timeFile;
+    QTextStream out;
+    if (!times.isEmpty())
+    {
+        cameras[camera].writeVideo = true;
+        QString timePath = path;
+        timeFile.setFileName(timePath.replace(".avi", ".txt"));
+        timeFile.open(QIODevice::WriteOnly);
+        out.setDevice(&timeFile);
+    }
+
+    if (cap.isOpened())
+    {
+        qint32 i = 0;
+        const qint32 allowEmptyFrames = 10;
+        qint32 emptyFrames = 0;
+        while (true)
+        {
+            cap.read(frame);
+            if (!frame.empty())
+            {
+                emptyFrames = 0;
+                //qDebug() << "receive" << i;
+                if (cameras[camera].showVideo)
+                {
+                    appendFrameToBuffer(frame, camera);
+                }
+                quint64 tsMs = -1;
+                if (cameras[camera].writeVideo && canWriteVideo)
+                {
+                    video.write(frame);
+                    if (timeFile.isOpen())
+                    {
+                        tsMs = times[i];
+                        correctCameraTime(tsMs, camera);
+                        out << tsMs << endl;
+                    }
+                }
+                ++i;
+                //qDebug() << i << frameCount << tsMs;
+                if ((frameCount != -1 && i >= frameCount)
+                        || !cameras[camera].streamIsActive)
+                {
+                    //emit finishedGetData(camera);
+                    cap.release();
+                    cameras[camera].streamIsActive = false;
+                    qDebug() << "FINISHED";
+                    break;
+                }
+            }
+            else
+            {
+                ++emptyFrames;
+                if (allowEmptyFrames == emptyFrames)
+                {
+                    cameras[camera].streamIsActive = false;
+                }
+            }
+        }
+    }
+    else
+    {
+        cap.release();
+        cameras[camera].streamIsActive = false;
+    }
 }
 
 void CameraServer::getVideoInternal(QTcpSocket* camera, qint32 frameCount, qint32 port, bool compress, const QString& path = QString())
@@ -629,41 +1041,7 @@ void CameraServer::getVideoInternal(QTcpSocket* camera, qint32 frameCount, qint3
         {
             if (!cameras[camera].curParams.rawFrame)
             {
-                cameras[camera].streamIsActive = true;
-                qDebug() << QString("udpsrc port=%1 ! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay "
-                                    "! h265parse ! queue ! omxh265dec ! videoconvert ! appsink").arg(port);
-                setenv("GST_DEBUG","2", 0);
-                cv::VideoCapture cap(QString("udpsrc port=%1 ! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay "
-                                             "! h265parse ! queue ! omxh265dec ! videoconvert ! appsink")
-                                     .arg(port).toStdString(), cv::CAP_GSTREAMER);
-
-                cv::Mat frame;
-                if (cap.isOpened())
-                {
-                    qint32 i = 0;
-                    while (true)
-                    {
-                        cap.read(frame);
-                        if (!frame.empty())
-                        {
-                            if (cameras[camera].streamIsActive)
-                            {
-                                appendFrameToBuffer(frame, camera);
-                            }
-                            else
-                            {
-                                //сохранить видео
-                            }
-                            ++i;
-                            if ((frameCount != -1 && i >= frameCount)
-                                    || !cameras[camera].streamIsActive)
-                            {
-                                break;
-                            }
-
-                        }
-                    }
-                }
+                receiveRtspVideo(port, frameCount, path, camera);
             }
             else
             {
@@ -692,7 +1070,7 @@ void CameraServer::getVideoInternal(QTcpSocket* camera, qint32 frameCount, qint3
                 if (server->waitForNewConnection(5000))
                 {
                     auto socket = server->nextPendingConnection();
-                    qDebug() << "new conn" << socket;
+                   // qDebug() << "new conn" << socket;
                     QByteArray buffer;
                     QDataStream in(&buffer, QIODevice::ReadOnly);
                     QString reportPath = path;
@@ -724,8 +1102,6 @@ void CameraServer::getVideoInternal(QTcpSocket* camera, qint32 frameCount, qint3
                     qDebug() << "finished" << i << buffer.size();
                     server->close();
                 }
-
-
             }
         }
     }
@@ -745,16 +1121,41 @@ void CameraServer::sendParametersToCamera(const CameraOptions& parameters, QTcpS
         QByteArray data;
         data.append(SendCameraParams);
         data.append((const char*)&parameters, sizeof(CameraOptions));
-        data.append(EndOfMessageSign);
+        fillEndOfMessage(data);
         socket->write(data);
     }
+}
+
+void CameraServer::receiveRecognizeVideo(QTcpSocket* camera)
+{
+    if (!cameras[camera].streamIsActive)
+    {
+        auto data = cameras[camera].recVideoData.first();
+        cameras[camera].recVideoData.removeFirst();
+        QString path = QString("games_%1/%2/video_%3.avi")
+                .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                .arg(cameras[camera].curParams.portSendStream)
+                .arg(data.startTime.toString("hh_mm_ss"));
+        receiveRtspVideo(cameras[camera].curParams.portSendStream + 1,
+                         data.frameCount, path,
+                         camera, data.times, data.startTime);
+    }
+}
+
+void CameraServer::fillEndOfMessage(QByteArray& array)
+{
+    for (qint32 i = 0; i < 10; ++i)
+    {
+        array.append(EndOfMessageSign);
+    }
+
 }
 
 void CameraServer::requestCurrentCameraParameters(QTcpSocket* socket)
 {
     QByteArray array;
     array.append(AskCurrentCameraParams);
-    array.append(EndOfMessageSign);
+    fillEndOfMessage(array);
     socket->write(array);
 }
 
@@ -771,10 +1172,10 @@ void CameraServer::requestFrameFromCamera(QTcpSocket* socket, qint32 port, const
 {
     if (cameras.contains(socket))
     {
-        QtConcurrent::run(this, &CameraServer::getFrameInternal, socket, port, path, false);
+        QtConcurrent::run(std::bind(&CameraServer::getFrameInternal, this, socket, port, path, false, All, false));
         QByteArray data;
         data.append(RequestCameraFrame);
-        data.append(EndOfMessageSign);
+        fillEndOfMessage(data);
         socket->write(data);
     }
 }
@@ -787,7 +1188,7 @@ void CameraServer::requestVideoFromCamera(qint32 port, qint32 duration, bool com
         QtConcurrent::run(this, &CameraServer::getVideoInternal, socket, duration * cameras[socket].curParams.frameRate, port, compress, path);
         QByteArray data;
         data.append(RequestCameraVideo);
-        data.append(EndOfMessageSign);
+        fillEndOfMessage(data);
         socket->write(data);
     }
 }
@@ -802,7 +1203,7 @@ void CameraServer::startStream(qint32 port, QTcpSocket* socket, bool start)
         if (start && !cameras[socket].streamIsActive)
         {
             data.append(StartStream);
-            data.append(EndOfMessageSign);
+            fillEndOfMessage(data);
             socket->write(data);
             emit streamFromIsComing(socket);
             QtConcurrent::run(this, &CameraServer::getVideoInternal, socket, -1, port, false, QString());
@@ -811,7 +1212,7 @@ void CameraServer::startStream(qint32 port, QTcpSocket* socket, bool start)
         else
         {
             data.append(StopStream);
-            data.append(EndOfMessageSign);
+            fillEndOfMessage(data);
             socket->write(data);
             cameras[socket].streamIsActive = false;
 
@@ -823,8 +1224,139 @@ void CameraServer::restartCamera(QTcpSocket* socket)
 {
     QByteArray data;
     data.append(RestartCamera);
-    data.append(EndOfMessageSign);
+    fillEndOfMessage(data);
     socket->write(data);
+}
+
+void CameraServer::saveCameraSettings(QTcpSocket* camera)
+{
+    QByteArray data;
+    data.append(SendSaveParameters);
+    fillEndOfMessage(data);
+    camera->write(data);
+}
+
+void CameraServer::checkRecognizeResults()
+{
+    if (cameras.size() > 1)
+    {
+        if (calibrate)
+        {
+            QVector <RecognizeData>& resFirst = cameras.first().recData;
+            QVector <RecognizeData>& resSecond = cameras.last().recData;
+            double min = 100;
+            qint32 indexf = -1;
+            qint32 indexs = -1;
+            for (qint32 i = 0; i < resFirst.size(); ++i)
+            {
+                for (qint32 j = 0; j < resSecond.size(); ++j)
+                {
+                    qDebug() << i << j << QString::number(resFirst[i].data[0][2], 'g', 10)
+                            << QString::number(resSecond[j].data[0][2], 'g', 10)
+                            << std::abs(resFirst[i].data[0][2] - resSecond[j].data[0][2]) << "REC TIME EVALUATE";
+                    double delta = std::abs(resFirst[i].data[0][2] - resSecond[j].data[0][2]);
+                    if (min > delta)
+                    {
+                        min = delta;
+                        indexf = i;
+                        indexs = j;
+                    }
+                }
+            }
+            if (min < 0.25)
+            {
+                for (auto& cam : cameras.keys())
+                {
+                    emit readyMessageFromServer(QString("Измерения синхронизированы, дельта = %1 сек.").arg(min), cam);
+                }
+                BallApproximator approx;
+                if (handleApproximation(approx, cameras.first().curParams.portSendStream, resFirst[indexf].data, resFirst[indexf].size,
+                                        cameras.last().curParams.portSendStream, resSecond[indexs].data, resSecond[indexs].size))
+                {
+                    ApproximationVisualizer& visualizer = ApproximationVisualizer::instance();
+
+                    qint32 recCountFirst = 0;;
+                    for (qint32 i = 0; i < resFirst[indexf].size; ++i)
+                    {
+                        if (resFirst[indexf].data[2])
+                        {
+                            ++recCountFirst;
+                        }
+                    }
+                    qint32 recCountSecond  = 0;
+                    for (qint32 i = 0; i < resSecond[indexs].size; ++i)
+                    {
+                        if (resSecond[indexs].data[2])
+                        {
+                            ++recCountSecond;
+                        }
+                    }
+                    QString info = QString ("%1 %2 %3 %4")
+                            .arg(cameras.first().curParams.portSendStream).arg(recCountFirst)
+                            .arg(cameras.last().curParams.portSendStream).arg(recCountSecond);
+                    QVector <QImage> result = visualizer.createApproxVisualisation(approx, info);
+                    double vBeginMiles = visualizer.vBegin * metersToMiles;
+                    double vEndMiles = visualizer.vEnd * metersToMiles;
+                    if (vBeginMiles < vEndMiles || vBeginMiles > 100 || vEndMiles > 100)
+                    {
+                        for (auto& cam : cameras.keys())
+                        {
+                            emit readyMessageFromServer(QString("Измерения отброшены по скорости. (%1)").arg(vBeginMiles), cam);
+                        }
+                        resFirst.remove(0, indexf + 1);
+                        resSecond.remove(0, indexs + 1);
+                        return;
+                    }
+                    emit resultPictureReady(result.first());
+                    if (result.size() == 2)
+                    {
+                        result.last().save(QString("games_%1/pictures/small.jpg").arg(QDate::currentDate().toString("dd_MM_yyyy")));
+                        result.first().save(QString("games_%1/pictures/big%2.jpg")
+                                            .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                            .arg(QTime::currentTime().toString("hh_mm_ss")));
+                        result.last().save(QString("games_%1/pictures/small%2.jpg")
+                                           .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                           .arg(QTime::currentTime().toString("hh_mm_ss")));
+                        result.first().save(QString("games_%1/pictures/big.jpg").arg(QDate::currentDate().toString("dd_MM_yyyy")));
+
+                    }
+                    else
+                    {
+                        if (visualizer.isfullPicture())
+                        {
+                            result.first().save(QString("games_%1/pictures/big.jpg").arg(QDate::currentDate().toString("dd_MM_yyyy")));
+                            result.first().save(QString("games_%1/pictures/big%2.jpg")
+                                                .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                                .arg(QTime::currentTime().toString("hh_mm_ss")));
+                        }
+                        else
+                        {
+                            result.last().save(QString("games_%1/pictures/small.jpg").arg(QDate::currentDate().toString("dd_MM_yyyy")));
+                            result.first().save(QString("games_%1/pictures/small%2.jpg")
+                                                .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                                .arg(QTime::currentTime().toString("hh_mm_ss")));
+                        }
+                    }
+
+
+
+
+                    QDateTime dt = QDateTime::currentDateTime();
+                    dt.setTime(resFirst[indexf].startTime);
+                    visualizer.plotCamera(approx, cameras.first().curParams.portSendStream, cameras.last().curParams.portSendStream
+                                          ,recCountFirst, recCountSecond, dt);
+                }
+
+                resFirst.remove(0, indexf + 1);
+                resSecond.remove(0, indexs + 1);
+            }
+        }
+
+        else
+        {
+            emit readyMessageFromServer("Время не синхронизировано. Измерения не будут обработаны");
+        }
+    }
 }
 
 
@@ -846,6 +1378,19 @@ Mat CameraServer::getLastCameraFrame(QTcpSocket* camera)
 {
     QMutexLocker lock(&streamMutex);
     return cameras[camera].lastFrame;
+}
+
+Mat CameraServer::getLastCameraFrame(qint32 num)
+{
+     QMutexLocker lock(&streamMutex);
+     for (auto& i : cameras)
+     {
+         if (i.curParams.portSendStream == num)
+         {
+             return i.lastFrame;
+         }
+     }
+     return Mat();
 }
 
 
@@ -881,9 +1426,13 @@ void CameraServer::stopVideoTimer(QTcpSocket* socket)
 
 CameraServer::~CameraServer()
 {
-
+    for (auto& i : cameras.keys())
+    {
+        saveCameraSettings(i);
+    }
     for (auto& i : cameras)
     {
         delete i.timer;
     }
+    cameras.clear();
 }

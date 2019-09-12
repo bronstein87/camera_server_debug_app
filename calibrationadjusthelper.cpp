@@ -1,15 +1,21 @@
 #include "calibrationadjusthelper.h"
-
+using namespace cv;
 CalibrationAdjustHelper::CalibrationAdjustHelper(QObject *parent) : QObject(parent)
 {
 
 }
 
-Mat CalibrationAdjustHelper::createCalibrateImage(const QString &refImagePath, const QString &pointListPath, Mat corImage, qint32 size)
+Mat CalibrationAdjustHelper::createCalibrateImage(const QString& refImagePath, qint32 cameraNum, Mat corImage, qint32 size, qint32 w, qint32 h, bool current)
 {
     data.clear();
-    Mat refImage = imread(refImagePath.toStdString(), IMREAD_GRAYSCALE);
-    QFile pointListFile (pointListPath);
+    refImage = imread(refImagePath.toStdString(), IMREAD_GRAYSCALE);
+
+    corImageInt = corImage;
+    Calibration::ExteriorOr eOr;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cam;
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(cameraNum, "calibrate/", eOr, cam, current);
+
+    QFile pointListFile ("calibrate/init_xyz");
 
     if (pointListFile.open(QIODevice::ReadOnly))
     {
@@ -18,35 +24,74 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString &refImagePath, c
         while (in.readLineInto(&line))
         {
             auto list = line.split("\t");
-            CalibratePointData d;
-            d.x = list[0].toDouble();
-            d.y = h - list[1].toDouble();
-            d.x3d = list[2].toDouble();
-            d.y3d = list[3].toDouble();
-            d.z = list[4].toDouble();
-            data.append(d);
+            Calibration::Position pos;
+            pos.X = list[0].toDouble();
+            pos.Y = list[1].toDouble();
+            pos.Z = 0;
+            Calibration::Position2D pos2d;
+            if (Calibration::GetXYfromXYZ(eOr, cam, pos, pos2d))
+            {
+                if (pos2d.X > whd || pos2d.Y > hhd || pos2d.Y < 300)
+                {
+                    continue;
+                }
+                CalibratePointData d;
+                d.x = pos2d.X;
+                d.y = pos2d.Y;
+                d.x3d = pos.X;
+                d.y3d = pos.Y;
+                d.z = pos.Z;
+                data.append(d);
+                if (data.size() > 50) break;
+            }
         }
     }
+
+    dataInit = data;
     QVector <Mat> patterns;
     QVector <Rect> initRects;
+
+    auto it = data.begin();
+
+    while (it != data.end())
+    {
+        if ((it->x - size) < 0
+                || (it->y - size) < 0
+                || (it->x + size * 2) > whd
+                || (it->y + size * 2) > hhd)
+        {
+            it = data.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
     for (qint32 i = 0; i < data.size(); ++i)
     {
         Rect r = Rect(data[i].x - size, data[i].y - size, size * 2, size * 2);
         initRects.append(r);
         patterns.append(refImage(r));
-        //imwrite(QString("/home/nvidia/recalibrate_debug/test%1.png").arg(i).toStdString(), patterns.last());
+        if (savePattens)
+        {
+            // imwrite(QString("calibrate/patterns/%1.png").arg(i).toStdString(), patterns.last());
+        }
     }
 
     Mat corImageDraw;
     corImage.copyTo(corImageDraw);
     cvtColor(corImage, corImage, CV_BGR2GRAY);
-    const qint32 searcAreaFirstCoef = 4;
-    const qint32 searcAreaSecondCoef = 8;
     for (qint32 i = 0; i < patterns.size(); ++i)
     {
+        Rect r = Rect(data[i].x - w / 2, data[i].y - h / 2, w, h);
+
+        if (r.x < 0 || r.y < 0 || r.x + r.width > whd || r.y + r.height > hhd)
+        {
+            continue;
+        }
+
         rectangle(corImageDraw, initRects[i], CV_RGB(0, 255, 0));
-        Rect r = Rect(data[i].x - searcAreaFirstCoef * size, data[i].y - searcAreaFirstCoef * size,
-                      size * searcAreaSecondCoef, size * searcAreaSecondCoef);
+
         Mat img;
         corImage(r).copyTo(img);
         Mat result;
@@ -60,16 +105,21 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString &refImagePath, c
 
         minMaxLoc( result, &minVal, &maxVal, &minLoc, &maxLoc, Mat() );
 
-        double x = maxLoc.x + data[i].x - searcAreaFirstCoef * size;
-        double y = maxLoc.y + data[i].y - searcAreaFirstCoef * size;
+        double x = maxLoc.x + data[i].x  - w / 2;
+        double y = maxLoc.y + data[i].y - h / 2;
         rectangle( corImageDraw, Point(x, y),
                    Point( x + patterns[i].cols , y + patterns[i].rows ), CV_RGB(255, 0, 0));
         double diffX = data[i].x - size - x;
         double diffY = data[i].y - size - y;
 
-        // qDebug() << x << data[i].x - size << y << data[i].y - size << maxLoc.x << maxLoc.y;
+        diffXVec.append(diffX);
+        diffYVec.append(diffY);
+        corrs.append(maxVal);
+
+        //qDebug() << i << data[i].x3d << data[i].y3d << data[i].z << data[i].x << data[i].y << x + size << y + size;
         data[i].x = x + size;
         data[i].y = y + size;
+
         putText(corImageDraw, QString("CORR%4 %1 DX: %2 DY: %3")
                 .arg(maxVal)
                 .arg(diffX)
@@ -77,13 +127,56 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString &refImagePath, c
                 .arg(i).toStdString(),
                 Point(x - 200, y - 10), FONT_HERSHEY_PLAIN, 1, CV_RGB(255, 255, 255));
     }
-    imwrite("/home/nvidia/actual_server/server_debug/calibrate/correlate_test.png", corImageDraw);
+
     return corImageDraw;
 
 }
 #include <QDebug>
-void CalibrationAdjustHelper::recalibrate(QVector<qint32> excludePoints, Calibration::ExteriorOr& EO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& Camera,
-                                          Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera)
+void CalibrationAdjustHelper::updateCalibrateInfo(qint32 cameraNum,  Calibration::ExteriorOr& eo)
+{
+    QFile oldCalib ("calibrate/pos_orient");
+    Q_ASSERT(oldCalib.exists());
+    oldCalib.rename(QString("calibrate/pos_orient_%1").arg(QDateTime::currentDateTime()
+                                                           .toString("dd.MM.yyyy hh:mm:ss")));
+    QStringList oldCalibList;
+    if (oldCalib.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&oldCalib);
+        QString line;
+        while (in.readLineInto(&line))
+        {
+            oldCalibList.append(line);
+        }
+    }
+    for (qint32 i = 0; i < oldCalibList.size(); ++i)
+    {
+        if (oldCalibList[i].split("\t").first().toInt() == cameraNum)
+        {
+            oldCalibList.removeAt(i);
+            break;
+        }
+    }
+    oldCalibList.append(QString("%1\t%2\t%3\t%4\t%5\t%6\t%7")
+                        .arg(cameraNum)
+                        .arg(eo.Point.X, 0, 'g', 10)
+                        .arg(eo.Point.Y, 0,'g', 10)
+                        .arg(eo.Point.Z, 0,'g', 10)
+                        .arg(Calibration::Radian2Deg(eo.OPK.Omega), 0,'g', 10)
+                        .arg(Calibration::Radian2Deg(eo.OPK.Phi), 0,'g', 10)
+                        .arg(Calibration::Radian2Deg(eo.OPK.Kappa), 0, 'g', 10));
+    QFile newCalib("calibrate/pos_orient");
+    if (newCalib.open(QIODevice::WriteOnly))
+    {
+        QTextStream out(&newCalib);
+        for (auto& i : oldCalibList)
+        {
+            out << i << endl;
+        }
+    }
+}
+
+void CalibrationAdjustHelper::recalibrate(QVector <qint32> excludePoints, Calibration::ExteriorOr& EO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& camera,
+                                          Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera, bool save)
 {
     QVector <Calibration::Position> pos;
     QVector <Calibration::Position2D> pos2D;
@@ -98,24 +191,88 @@ void CalibrationAdjustHelper::recalibrate(QVector<qint32> excludePoints, Calibra
             p.Z = data[i].z;
             pxy.X = data[i].x;
             pxy.Y = data[i].y;
-            pos.append(p);
             pos2D.append(pxy);
-           Calibration::Position2D d;
-            Calibration::GetXYfromXYZ(EO, Camera, p, d);
-          // qDebug() << "TEST" << pxy.X << d.X << pxy.Y << d.Y;
-             qDebug() << pxy.X << 1216 - pxy.Y;
-
+            pos.append(p);
         }
     }
-    //qDebug() << Camera.sample << Camera.line << Camera.samples << Camera.lines << Camera.focus << Camera.pixelsize << Camera.D_K1 << Camera.D_K2 << Camera.D_K3 << Camera.D_P1 << Camera.D_P2 << Camera.D_b1 << Camera.D_b2;
-    testAdjustment(EO, Camera, pos, pos2D, false, newEO, newCamera);
+    testAdjustment(EO, camera, pos, pos2D, false, newEO, newCamera);
+    if (save)
+    {
+        updateCalibrateInfo(camera.name.toInt(), newEO);
+        QString newImageName = QString("calibrate/new%1.png")
+                .arg(camera.name);
+        if (QFile::exists(newImageName))
+        {
+            QString oldImageName = QString("calibrate/old%1.png")
+                    .arg(camera.name);
+            if (QFile::exists(oldImageName))
+            {
+                Q_ASSERT(QFile::remove(oldImageName));
+            }
+            QFile::rename(newImageName, oldImageName);
+        }
+        imwrite(newImageName.toStdString(), corImageInt);
+    }
+}
 
+void CalibrationAdjustHelper::autoCalibrate(QTcpSocket* cam, qint32 number, CameraServer* server, Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera)
+{
+    Mat frame = server->getLastCameraFrame(cam);
+    if (!frame.empty())
+    {
+        Mat fullFrame = Mat(Size(1936, 1216), CV_8UC3);
+        frame.copyTo(fullFrame(Rect(0, 0, 1920, 1080)));
+        savePattens = false;
+        if (compareFlag == Current)
+        {
+            createCalibrateImage(QString("calibrate/new%1.png").arg(number), number, fullFrame, 35, 100, 100, true);
+        }
+        else
+        {
+            createCalibrateImage(QString("calibrate/standart%1.bmp").arg(number), number, fullFrame, 35, 100, 100, false);
+        }
+
+        savePattens = true;
+        double meanX = BOKZMath::calculateMean(diffXVec.begin(), diffXVec.end(), 0.0);
+        double meanY = BOKZMath::calculateMean(diffYVec.begin(), diffYVec.end(), 0.0);
+        const double corrThreshold = 0.985;
+        QVector <qint32> excludePoints;
+        for (qint32 i = 0; i < corrs.size(); ++i)
+        {
+            if (corrs[i] < corrThreshold || abs(diffXVec[i] - meanX) > 2 || abs(diffYVec[i] - meanY) > 2)
+            {
+                excludePoints.append(i);
+            }
+        }
+        qDebug() << number << excludePoints;
+        Calibration::ExteriorOr eOr;
+        Calibration::SpacecraftPlatform::CAMERA::CameraParams camOld;
+
+        if (compareFlag == Current)
+        {
+            readCurrentCalibrationParameters(number, "calibrate/", eOr, camOld, true);
+        }
+        else
+        {
+            readCurrentCalibrationParameters(number, "calibrate/", eOr, camOld, false);
+        }
+        recalibrate(excludePoints, eOr, camOld, newEO, newCamera, saveAutoCalibrate);
+    }
 }
 
 void CalibrationAdjustHelper::readCurrentCalibrationParameters(qint32 cameraNumber, const QString& path, Calibration::ExteriorOr& EO,
-                                                               Calibration::SpacecraftPlatform::CAMERA::CameraParams& Camera, qint32 w, qint32 h)
+                                                               Calibration::SpacecraftPlatform::CAMERA::CameraParams& Camera, bool current, qint32 w, qint32 h)
 {
-    QFile orPos (path + "/pos_orient");
+    QString orPosName;
+    if (!current)
+    {
+        orPosName = "/pos_orient_standart";
+    }
+    else
+    {
+        orPosName = "/pos_orient";
+    }
+    QFile orPos (path + orPosName);
     QFile otherParams (path + QString("/Cam_%1.x-cam").arg(cameraNumber));
     if (orPos.open(QIODevice::ReadOnly) && otherParams.open(QIODevice::ReadOnly))
     {
@@ -186,25 +343,18 @@ void CalibrationAdjustHelper::readCurrentCalibrationParameters(qint32 cameraNumb
         {
             params.append("0");
         }
-        Camera.Init("", params[0].toDouble(), pixelSize, mainPointX, h - mainPointY, w, h, Dir_R, Dir_Z, CamType,
+        Camera.Init(QString::number(cameraNumber), params[0].toDouble(), pixelSize, mainPointX, h - mainPointY, w, h, Dir_R, Dir_Z, CamType,
                 params[1].toDouble(), params[2].toDouble(), params[3].toDouble(), params[6].toDouble(), params[7].toDouble(), 0, 0,
                 params[4].toDouble(), params[5].toDouble());
-       // Camera.Init("", params[0].toDouble(), pixelSize, mainPointX, h - mainPointY, w, h, Dir_R, Dir_Z,CamType, Calibration::SpacecraftPlatform::CAMERA::CameraDistortionType::Classical);
     }
 }
-
-void CalibrationAdjustHelper::saveNewCalibrationParameters(Calibration::ExteriorOr &newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams &newCamera, Mat newImage, qint32 cameraId)
-{
-
-}
-
 
 
 //newEO возвращает и принимает углы в радианах
 void CalibrationAdjustHelper::testAdjustment(const Calibration::ExteriorOr& EO, const Calibration::SpacecraftPlatform::CAMERA::CameraParams& Camera,
-                    QVector <Calibration::Position>& GCPs, QVector <Calibration::Position2D>& measurements,
-                    bool useCameraCalibration,
-                    Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera)
+                                             QVector <Calibration::Position>& GCPs, QVector <Calibration::Position2D>& measurements,
+                                             bool useCameraCalibration,
+                                             Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera)
 {
     //======================================================================
     Calibration::Adjustment::Data information;

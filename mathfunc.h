@@ -1,8 +1,11 @@
 #ifndef MATHFUNC_H
 #define MATHFUNC_H
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include <utility>
 #include <iterator>
-#include <cmath>
+
+
 #include <QtGlobal>
 #include <QDateTime>
 #include <QPointF>
@@ -10,8 +13,8 @@
 
 
 typedef int (*CorrectBoardQuatResurs)(wchar_t *patch_cat, /*Имя папки c бортовыми каталогами*/
-                                wchar_t *patch_dtmi, /*Имя папки для создания файлов с тестовой информацией, если NULL - файлы не создаются*/
-                                double ArrBokz[][8], /*Массив кватернионов*/
+                                      wchar_t *patch_dtmi, /*Имя папки для создания файлов с тестовой информацией, если NULL - файлы не создаются*/
+                                      double ArrBokz[][8], /*Массив кватернионов*/
 unsigned int &nBokz, /*Число измерений кватернионов*/
 unsigned int nBokzMax, /*Макс. размер массива кватернионов*/
 float ArrLoc[][77], /*Массив локализованных объектов*/
@@ -22,8 +25,8 @@ unsigned int &CurrentIndex, /*Текущий индекс массива ква�
 unsigned char &Stop); /*Признак останова программы*/
 
 typedef int (*CorrectBoardQuatBARS)(wchar_t *patch_cat, /*Имя папки c бортовыми каталогами*/
-                                wchar_t *patch_dtmi, /*Имя папки для создания файлов с тестовой информацией, если NULL - файлы не создаются*/
-                                double ArrBokz[][13], /*Массив кватернионов*/
+                                    wchar_t *patch_dtmi, /*Имя папки для создания файлов с тестовой информацией, если NULL - файлы не создаются*/
+                                    double ArrBokz[][13], /*Массив кватернионов*/
 unsigned int &nBokz, /*Число измерений кватернионов*/
 unsigned int nBokzMax, /*Макс. размер массива кватернионов*/
 float ArrLoc[][77], /*Массив локализованных объектов*/
@@ -48,6 +51,14 @@ struct RecognizedInfo
     bool recognized = false;
 };
 
+enum CompareFlag
+{
+    None,
+    Current,
+    Reference
+
+};
+
 
 namespace BOKZMath {
 
@@ -57,13 +68,14 @@ constexpr const double mSecsInDay = 86400000;
 constexpr const double radToAngularMin = 3437.7467747131374;
 constexpr const double radToDegrees = 57.29577957855229;
 constexpr const double degreesToRad = 0.0174532925;
-constexpr const double radToSec = 180. * 3600. / M_PI;
+constexpr const double radToSec = 180. * 3600. / 3.14159265358979323846;
 constexpr const double secToRad = 1. / radToSec;
 constexpr const double julianZeroDate = 2451545.;
 constexpr const double countOfDaysInCentury = 36525.;
 constexpr const double secOfTimeToArcSec = 360. / 86400. * 3600.;
 constexpr const double arcMSecToDegree =  1. / (3600 * 1000);
 constexpr const double arcSecToDegree =  1. / 3600;
+constexpr const static double metersToMiles =  3.6 / 1.609;
 
 
 void correctLocArray(float locArray[16][4]) noexcept;
