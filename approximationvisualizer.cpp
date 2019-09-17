@@ -28,7 +28,7 @@ void ApproximationVisualizer::fillSkippedTime(QVector<double>& errorsFirst, QVec
         timeFirstInit[i] = std::abs(timeFirstInit[i]);
         for (qint32 j = from; j < timeFirst.size(); ++j)
         {
-            if (qFuzzyCompare(timeFirstInit[i],std::abs(timeFirst[j])))
+            if (qFuzzyCompare(std::abs(timeFirstInit[i]), timeFirst[j]))
             {
                 from = j + 1 < timeFirst.size() ? j + 1 : j;
                 break;
@@ -490,7 +490,7 @@ void ApproximationVisualizer::drawZones(Calibration::ExteriorOr& eOr, Calibratio
     const double farZoneY = 0.43;
     const double width = 0.215;
     const double minHeight = 0.473;
-    const double maxHeight = 1.075;
+    const double maxHeight = 1.045;//1.075;
 
     QPixmap zoneFar("://resources/zone_far.png");
 
@@ -674,7 +674,7 @@ QImage ApproximationVisualizer::makeShortPicture(BallApproximator &approx, QStri
     Calibration::Position2D XYShadow, XYShift;
 
 
-    double xSpeed = 1000;
+    double xSpeed = 900;
     double ySpeed = 435;
     QGraphicsTextItem * textItemVBegin = new QGraphicsTextItem(picture);
     textItemVBegin->setDefaultTextColor(QColor(255, 255, 255));

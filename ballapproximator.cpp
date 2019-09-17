@@ -248,7 +248,7 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     const double farZoneY = 0.43;
     const double width = 0.215;
     const double minHeight = 0.473;
-    const double maxHeight= 1.075;
+    const double maxHeight= 1.045;//1.075;
     const double offset = 0.03;
 
     solveQuadratic(a[1] / 2, v[1], pos[1] - yBegin, t1, t2);

@@ -572,8 +572,8 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
     Calibration::ExteriorOr EOSecondCamera;
     Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraSecond;
     QMutexLocker lock(&autoCalibrateMutex);
-    CalibrationAdjustHelper::readCurrentCalibrationParameters(fNum, "calibrate", EOFirstCamera, cameraFirst);
-    CalibrationAdjustHelper::readCurrentCalibrationParameters(sNum, "calibrate", EOSecondCamera, cameraSecond);
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(fNum, "calibrate", EOFirstCamera, cameraFirst, true);
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(sNum, "calibrate", EOSecondCamera, cameraSecond, true);
     lock.unlock();
 
     QVector <Calibration::Position> secondVecs;
@@ -731,6 +731,7 @@ void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
                 break;
             case GetBaseBallCoordinates:
             {
+                emit readyMessageFromServer(QString("Координаты мяча получены."), camera);
                 RecognizeData data;
                 RecognizeVideoData vData;
                 quint32 size =  maxNumberOfMeasures * measureDim * sizeof(double);
@@ -763,18 +764,24 @@ void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
             }
             case SendRecognizeVideo:
             {
+
+               // cameras[camera].recVideoData.append(RecognizeVideoData()); // tmp
                 auto& v = cameras[camera].recVideoData.first();
+                v.startTime = QTime::currentTime();
+                //v.frameCount = 180; //tmp
                 for (qint32 i = 0; i < v.frameCount; ++i)
                 {
                     quint64 time;
                     memcpy(&time, buffer.data() + i * sizeof(quint64), sizeof(quint64));
                     v.times.append(time);
                 }
+
+               // v.frameCount = v.times.size(); // tmp
+                qDebug() << QTime::currentTime() << cameras[camera].recVideoData.size() << v.frameCount;
                 QtConcurrent::run(this, &CameraServer::receiveRecognizeVideo, camera);
                 break;
             }
             case IsServerPrepareToGetStream:
-                emit readyMessageFromServer(QString("Do we ready to get stream?"), camera);
                 break;
             case AskCurrentCameraParams:
             {
@@ -794,6 +801,7 @@ void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
                 {
                     correctSyncTime();
                 }
+                break;
             }
 
             }
@@ -945,27 +953,23 @@ void CameraServer::receiveRtspVideo(qint32 port, qint32 frameCount, const QStrin
 {
     cameras[camera].streamIsActive = true;
     QString address = camera->peerAddress().toString().remove("::ffff:");
-    qputenv("GST_DEBUG", "2");
-    qDebug() << QString("rtspsrc location=rtsp://%1:%2/vd latency=0 tcp-timeout=2000000 connection-speed=100000 protocols=GST_RTSP_LOWER_TRANS_TCP "
-                        "! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay ! h265parse "
-                        "! avdec_h265 ! videoconvert ! appsink sync = false")
-                .arg(address)
-                .arg(port);
-
-    cv::VideoCapture cap(QString("rtspsrc location=rtsp://%1:%2/vd latency=0 tcp-timeout=2000000 connection-speed=100000 protocols=GST_RTSP_LOWER_TRANS_TCP "
-                                 "! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay ! h265parse "
-                                 "! avdec_h265 ! videoconvert ! appsink sync = false")
-                         .arg(address)
-                         .arg(port).toStdString(),
-                         cv::CAP_GSTREAMER);
-    //qDebug() << "1" << path << startTime << throwTime;
+    qputenv("GST_DEBUG", "4");
+    qDebug() << "try to open receive pipeline";
+    QString pipeLine = QString("rtspsrc location=rtsp://%1:%2/vd latency=0 tcp-timeout=2000000 connection-speed=100000 protocols=GST_RTSP_LOWER_TRANS_TCP "
+                               "! application/x-rtp,encoding-name=H265,payload=96 ! rtph265depay ! h265parse "
+                               "! avdec_h265 ! videoconvert ! appsink sync = false")
+            .arg(address)
+            .arg(port);
+    cv::VideoCapture cap(pipeLine.toStdString(), cv::CAP_GSTREAMER);
     Mat frame;
     qint32 width = cameras[camera].curParams.width;
     qint32 height = cameras[camera].curParams.height;
     qint32 frameRate = cameras[camera].curParams.frameRate;
     VideoWriter video;
+    qDebug() << width << height << frameRate;
+    qDebug() << "first opened";
     bool canWriteVideo = video.open(path.toStdString(), CV_FOURCC('X','V','I','D'), frameRate, Size(width, height));
-    qDebug() << path << throwTime;
+    qDebug() << "all pipelines opened";
     QFile timeFile;
     QTextStream out;
     if (!times.isEmpty())
@@ -976,61 +980,74 @@ void CameraServer::receiveRtspVideo(qint32 port, qint32 frameCount, const QStrin
         timeFile.open(QIODevice::WriteOnly);
         out.setDevice(&timeFile);
     }
-
-    if (cap.isOpened())
+    qint32 maxAttemptsCount = 2;
+    qint32 attempts = 0;
+    bool opened = false;
+    while (!opened && attempts != maxAttemptsCount)
     {
-        qint32 i = 0;
-        const qint32 allowEmptyFrames = 10;
-        qint32 emptyFrames = 0;
-        while (true)
+        if (cap.isOpened())
         {
-            cap.read(frame);
-            if (!frame.empty())
+            opened = true;
+            qDebug() << "stream opened";
+            qint32 i = 0;
+            const qint32 allowEmptyFrames = 10;
+            qint32 emptyFrames = 0;
+            while (true)
             {
-                emptyFrames = 0;
-                //qDebug() << "receive" << i;
-                if (cameras[camera].showVideo)
+                cap.read(frame);
+                if (!frame.empty())
                 {
-                    appendFrameToBuffer(frame, camera);
-                }
-                quint64 tsMs = -1;
-                if (cameras[camera].writeVideo && canWriteVideo)
-                {
-                    video.write(frame);
-                    if (timeFile.isOpen())
+                    emptyFrames = 0;
+                    if (cameras[camera].showVideo)
                     {
-                        tsMs = times[i];
-                        correctCameraTime(tsMs, camera);
-                        out << tsMs << endl;
+                        appendFrameToBuffer(frame, camera);
+                    }
+                    quint64 tsMs = -1;
+                    if (cameras[camera].writeVideo && canWriteVideo)
+                    {
+                        video.write(frame); // tmp
+                        if (timeFile.isOpen())
+                        {
+                            tsMs = times[i];
+                            correctCameraTime(tsMs, camera);
+                            out << tsMs << endl;
+                        }
+                    }
+                    ++i;
+                    if ((frameCount != -1 && i >= frameCount)
+                            || !cameras[camera].streamIsActive)
+                    {
+                        qDebug() << "FINISHED";
+                        cameras[camera].streamIsActive = false;
+                        //cap.release();
+                        break;
                     }
                 }
-                ++i;
-                //qDebug() << i << frameCount << tsMs;
-                if ((frameCount != -1 && i >= frameCount)
-                        || !cameras[camera].streamIsActive)
+                else
                 {
-                    //emit finishedGetData(camera);
-                    cap.release();
-                    cameras[camera].streamIsActive = false;
-                    qDebug() << "FINISHED";
-                    break;
-                }
-            }
-            else
-            {
-                ++emptyFrames;
-                if (allowEmptyFrames == emptyFrames)
-                {
-                    cameras[camera].streamIsActive = false;
+                    ++emptyFrames;
+                    if (allowEmptyFrames == emptyFrames)
+                    {
+                        cameras[camera].streamIsActive = false;
+                        //cap.release();
+                        break;
+                    }
+                    qDebug() << "empty";
                 }
             }
         }
+        else
+        {
+            ++attempts;
+            QThread::msleep(100);
+            cap.open(pipeLine.toStdString(), cv::CAP_GSTREAMER);
+        }
     }
-    else
+    if (!opened)
     {
-        cap.release();
         cameras[camera].streamIsActive = false;
     }
+
 }
 
 void CameraServer::getVideoInternal(QTcpSocket* camera, qint32 frameCount, qint32 port, bool compress, const QString& path = QString())
@@ -1070,7 +1087,7 @@ void CameraServer::getVideoInternal(QTcpSocket* camera, qint32 frameCount, qint3
                 if (server->waitForNewConnection(5000))
                 {
                     auto socket = server->nextPendingConnection();
-                   // qDebug() << "new conn" << socket;
+                    // qDebug() << "new conn" << socket;
                     QByteArray buffer;
                     QDataStream in(&buffer, QIODevice::ReadOnly);
                     QString reportPath = path;
@@ -1128,14 +1145,17 @@ void CameraServer::sendParametersToCamera(const CameraOptions& parameters, QTcpS
 
 void CameraServer::receiveRecognizeVideo(QTcpSocket* camera)
 {
+    //qDebug() << "prepare" << cameras[camera].streamIsActive;
     if (!cameras[camera].streamIsActive)
     {
+        cameras[camera].streamIsActive = true;
         auto data = cameras[camera].recVideoData.first();
         cameras[camera].recVideoData.removeFirst();
         QString path = QString("games_%1/%2/video_%3.avi")
                 .arg(QDate::currentDate().toString("dd_MM_yyyy"))
                 .arg(cameras[camera].curParams.portSendStream)
                 .arg(data.startTime.toString("hh_mm_ss"));
+        //qDebug() << "start";
         receiveRtspVideo(cameras[camera].curParams.portSendStream + 1,
                          data.frameCount, path,
                          camera, data.times, data.startTime);
@@ -1207,7 +1227,6 @@ void CameraServer::startStream(qint32 port, QTcpSocket* socket, bool start)
             socket->write(data);
             emit streamFromIsComing(socket);
             QtConcurrent::run(this, &CameraServer::getVideoInternal, socket, -1, port, false, QString());
-
         }
         else
         {
@@ -1263,7 +1282,7 @@ void CameraServer::checkRecognizeResults()
                     }
                 }
             }
-            if (min < 0.25)
+            if (min < 0.5)
             {
                 for (auto& cam : cameras.keys())
                 {
@@ -1278,7 +1297,7 @@ void CameraServer::checkRecognizeResults()
                     qint32 recCountFirst = 0;;
                     for (qint32 i = 0; i < resFirst[indexf].size; ++i)
                     {
-                        if (resFirst[indexf].data[2])
+                        if (resFirst[indexf].data[3])
                         {
                             ++recCountFirst;
                         }
@@ -1286,7 +1305,7 @@ void CameraServer::checkRecognizeResults()
                     qint32 recCountSecond  = 0;
                     for (qint32 i = 0; i < resSecond[indexs].size; ++i)
                     {
-                        if (resSecond[indexs].data[2])
+                        if (resSecond[indexs].data[3])
                         {
                             ++recCountSecond;
                         }
@@ -1308,6 +1327,26 @@ void CameraServer::checkRecognizeResults()
                         return;
                     }
                     emit resultPictureReady(result.first());
+                    if (recCountFirst < 16)
+                    {
+
+                        QFile savef(QString("games_%2/results/points%1_%2")
+                                    .arg(cameras.first().curParams.portSendStream)
+                                    .arg(QDate::currentDate().toString("dd_MM_yyyy")));
+                        savef.open(QIODevice::Append);
+                        QTextStream out(&savef);
+                        out << "ПОСМОТРЕТЬ" << endl;
+                    }
+                    if (recCountSecond < 16)
+                    {
+
+                        QFile savef(QString("games_%2/results/points%1_%2")
+                                    .arg(cameras.last().curParams.portSendStream)
+                                    .arg(QDate::currentDate().toString("dd_MM_yyyy")));
+                        savef.open(QIODevice::Append);
+                        QTextStream out(&savef);
+                        out << "ПОСМОТРЕТЬ" << endl;
+                    }
                     if (result.size() == 2)
                     {
                         result.last().save(QString("games_%1/pictures/small.jpg").arg(QDate::currentDate().toString("dd_MM_yyyy")));
@@ -1343,12 +1382,19 @@ void CameraServer::checkRecognizeResults()
 
                     QDateTime dt = QDateTime::currentDateTime();
                     dt.setTime(resFirst[indexf].startTime);
-                    visualizer.plotCamera(approx, cameras.first().curParams.portSendStream, cameras.last().curParams.portSendStream
-                                          ,recCountFirst, recCountSecond, dt);
+                    visualizer.plotCamera(approx, cameras.first().curParams.portSendStream, cameras.last().curParams.portSendStream,
+                                          recCountFirst, recCountSecond, dt);
                 }
 
                 resFirst.remove(0, indexf + 1);
                 resSecond.remove(0, indexs + 1);
+            }
+            else
+            {
+                for (auto& cam : cameras.keys())
+                {
+                    emit readyMessageFromServer(QString("Не обнаружено синхронного измерения, min = %1").arg(min), cam);
+                }
             }
         }
 
@@ -1382,15 +1428,15 @@ Mat CameraServer::getLastCameraFrame(QTcpSocket* camera)
 
 Mat CameraServer::getLastCameraFrame(qint32 num)
 {
-     QMutexLocker lock(&streamMutex);
-     for (auto& i : cameras)
-     {
-         if (i.curParams.portSendStream == num)
-         {
-             return i.lastFrame;
-         }
-     }
-     return Mat();
+    QMutexLocker lock(&streamMutex);
+    for (auto& i : cameras)
+    {
+        if (i.curParams.portSendStream == num)
+        {
+            return i.lastFrame;
+        }
+    }
+    return Mat();
 }
 
 

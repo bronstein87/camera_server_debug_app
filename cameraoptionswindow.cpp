@@ -1053,7 +1053,7 @@ void CameraOptionsWindow::on_calibratePushButton_clicked()
     Calibration::SpacecraftPlatform::CAMERA::CameraParams cam, nCam;
 
     CalibrationAdjustHelper::readCurrentCalibrationParameters(ui->streamPortSpinBox->value(),
-                                                              "calibrate/", eOr, cam);
+                                                              "calibrate/", eOr, cam, true);
     calibAdjustHelper.recalibrate(excludePoints, eOr,  cam, nEOr, nCam, true);
 }
 

@@ -137,6 +137,8 @@ MainWindow::MainWindow(QWidget *parent) :
         dir.mkdir("3850");
         dir.mkdir("results");
         dir.mkdir("graphs");
+        dir.mkdir("pictures");
+        dir.setCurrent(QApplication::applicationDirPath());
     }
 }
 

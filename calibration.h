@@ -90,7 +90,7 @@ public:
             OPK.Omega = EO.OPK.Omega;
             OPK.Phi = EO.OPK.Phi;
             OPK.Kappa = EO.OPK.Kappa;
-        };
+        }
     };
 
 
@@ -340,7 +340,7 @@ public:
                     unkonws = 1+5*2;//21
             }
             return(unkonws);
-        };
+        }
         int GetTotalNoGCPs(Data& information)
         {
             int unkonws = 0;
@@ -349,7 +349,7 @@ public:
                 if (information.measurements[i].type == pType::Tie) { unkonws += 3; }
             }
             return(unkonws);
-        };
+        }
         int GetUnknownParams(Data& information, bool findOnlyRot)
         {
             int rot_and_shift = 6;
@@ -357,7 +357,7 @@ public:
                 rot_and_shift = 3;
             int unkonws = information.image_counts * rot_and_shift + GetTotalNoGCPs(information) + GetUnknownDistortion(information);
             return(unkonws);
-        };
+        }
         //=======================================================================
         void CalcProducts(measure& meas, measProduct& prod, double &Lx, double &Ly)
         {
