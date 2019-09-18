@@ -140,6 +140,8 @@ MainWindow::MainWindow(QWidget *parent) :
         dir.mkdir("pictures");
         dir.setCurrent(QApplication::applicationDirPath());
     }
+    av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_21_19_31.avi")
+                       , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_21_19_31.avi"));
 }
 
 MainWindow::~MainWindow()

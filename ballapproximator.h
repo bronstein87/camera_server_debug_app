@@ -128,7 +128,7 @@ public:
 
     void solveQuadratic(double a, double b, double c, double& x1, double& x2);
 
-    static const int maxNumberOfMeasures = 100;
+    static const int maxNumberOfMeasures = 200;
 
 private:
 

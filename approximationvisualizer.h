@@ -73,6 +73,8 @@ public:
 
     QImage makeShortPicture(BallApproximator& approx, QString info);
 
+    void drawTracerDebug(const QString& fVideo, const QString& sVideo);
+
     void clearCalibGraphs()
     {
         if (!plots.isEmpty())
@@ -165,6 +167,9 @@ private:
     constexpr const static double coeff = 25;
 
 
+    void readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
+                                 Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
+                                 QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime);
 };
 
 

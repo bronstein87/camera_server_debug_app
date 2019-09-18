@@ -767,7 +767,7 @@ void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
 
                // cameras[camera].recVideoData.append(RecognizeVideoData()); // tmp
                 auto& v = cameras[camera].recVideoData.first();
-                v.startTime = QTime::currentTime();
+                //v.startTime = QTime::currentTime();
                 //v.frameCount = 180; //tmp
                 for (qint32 i = 0; i < v.frameCount; ++i)
                 {
@@ -1310,10 +1310,10 @@ void CameraServer::checkRecognizeResults()
                             ++recCountSecond;
                         }
                     }
-                    QString info = QString ("%1 %2 %3 %4")
-                            .arg(cameras.first().curParams.portSendStream).arg(recCountFirst)
-                            .arg(cameras.last().curParams.portSendStream).arg(recCountSecond);
-                    QVector <QImage> result = visualizer.createApproxVisualisation(approx, info);
+//                    QString info = QString ("%1 %2 %3 %4")
+//                            .arg(cameras.first().curParams.portSendStream).arg(recCountFirst)
+//                            .arg(cameras.last().curParams.portSendStream).arg(recCountSecond);
+                    QVector <QImage> result = visualizer.createApproxVisualisation(approx, QString());
                     double vBeginMiles = visualizer.vBegin * metersToMiles;
                     double vEndMiles = visualizer.vEnd * metersToMiles;
                     if (vBeginMiles < vEndMiles || vBeginMiles > 100 || vEndMiles > 100)

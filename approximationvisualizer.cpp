@@ -206,7 +206,7 @@ void ApproximationVisualizer::plotCalibrate(QMap <qint32, Calibration::ExteriorO
             double value;
             if (compareFlag != None)
             {
-                 value  = (v[index].eOr.OPK.Omega - eo.OPK.Omega) * BOKZMath::radToDegrees;
+                value  = (v[index].eOr.OPK.Omega - eo.OPK.Omega) * BOKZMath::radToDegrees;
             }
             else
             {
@@ -228,18 +228,18 @@ void ApproximationVisualizer::plotCalibrate(QMap <qint32, Calibration::ExteriorO
             }
             plotter.addPoint(v.last().dt.toMSecsSinceEpoch(), value, PlotType::DATETIME, 1);
 
-//            plotter.setPlot(calibPlots[indexPlot]);
-//            plotter.setGraphName("Kappa");
-//            plotter.setCustomColor(QRgb(0xf6a625));
-//            if (compareWithStandart)
-//            {
-//                value = index == 0 ? 0 : (v[index].eOr.OPK.Kappa - eo.OPK.Kappa) * BOKZMath::radToDegrees;
-//            }
-//            else
-//            {
-//                value = index == 0 ? 0 : (v[index].eOr.OPK.Kappa - v[index - 1].eOr.OPK.Kappa) * BOKZMath::radToDegrees;
-//            }
-//            plotter.addPoint(v.last().dt.toMSecsSinceEpoch(), value, PlotType::DATETIME, 2);
+            //            plotter.setPlot(calibPlots[indexPlot]);
+            //            plotter.setGraphName("Kappa");
+            //            plotter.setCustomColor(QRgb(0xf6a625));
+            //            if (compareWithStandart)
+            //            {
+            //                value = index == 0 ? 0 : (v[index].eOr.OPK.Kappa - eo.OPK.Kappa) * BOKZMath::radToDegrees;
+            //            }
+            //            else
+            //            {
+            //                value = index == 0 ? 0 : (v[index].eOr.OPK.Kappa - v[index - 1].eOr.OPK.Kappa) * BOKZMath::radToDegrees;
+            //            }
+            //            plotter.addPoint(v.last().dt.toMSecsSinceEpoch(), value, PlotType::DATETIME, 2);
 
             plotter.setPlot(calibPlots[indexPlot]);
             plotter.setGraphName("XYZ");
@@ -248,7 +248,7 @@ void ApproximationVisualizer::plotCalibrate(QMap <qint32, Calibration::ExteriorO
             {
 
                 double lenghtPrev =  sqrt(pow(eo.Point.X, 2)  + pow(eo.Point.Y, 2)
-                        + pow(eo.Point.Z, 2));
+                                          + pow(eo.Point.Z, 2));
                 double lenght =  sqrt(pow(v[index].eOr.Point.X, 2)  + pow(v[index].eOr.Point.Y, 2)
                                       + pow(v[index].eOr.Point.Z, 2));
                 value = lenght - lenghtPrev;
@@ -740,6 +740,144 @@ QImage ApproximationVisualizer::makeShortPicture(BallApproximator &approx, QStri
     QPainter painter(&image);
     scenePicture->render(&painter);
     return image;
+}
+
+void ApproximationVisualizer::readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
+                                                      Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
+                                                      QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime)
+{
+    qint32 num;
+    if (fVideo.contains("3850")) num = 3850;
+    else num = 4510;
+    QString timesPath = fVideo;
+    timesPath.remove(".avi").append(".txt");
+    QFile fTimePath(timesPath);
+    QVector <quint64> fTimes;
+    if (fTimePath.open(QIODevice::ReadOnly))
+    {
+        QTextStream in (&fTimePath);
+        QString line;
+        while (in.readLineInto(&line))
+        {
+            fTimes.append(line.toLongLong());
+        }
+    }
+    QString fCoordPath = timesPath;
+    fCoordPath.remove(".txt").append("_coord.txt");
+    QFile fCoordFile(fCoordPath);
+    QVector <QStringList> points;
+    Calibration::RayAndPoint rp;
+    Calibration::Position2D XYpix_left;
+
+    if (fCoordFile.open(QIODevice::ReadOnly))
+    {
+        QTextStream in(&fCoordFile);
+        QString line;
+
+        while (in.readLineInto(&line))
+        {
+            points.append(line.split("\t"));
+        }
+    }
+
+    CalibrationAdjustHelper::readCurrentCalibrationParameters(num, "calibrate", EOFirstCamera, cameraFirst, true);
+
+    for (qint32 i = 0; i < points.size(); ++i)
+    {
+        XYpix_left.X = points[i][0].toDouble();
+        XYpix_left.Y = points[i][1].toDouble();
+        Calibration::GetRayAndPoint(EOFirstCamera, cameraFirst, XYpix_left, rp);
+        firstVecs.append(rp.Vect);
+        // qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points[i][2].toDouble()/ divideTime, 'g', 10);
+        double time = points[i][2].toDouble();
+        if (qFuzzyCompare(points[i][3].toDouble(), 1))
+        {
+            firstTime.append(time);
+        }
+        else
+        {
+            firstTime.append(-time);
+        }
+    }
+
+
+}
+
+void ApproximationVisualizer::drawTracerDebug(const QString &fVideo, const QString &sVideo)
+{
+
+
+    Calibration::ExteriorOr EOFirstCamera;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraFirst;
+    QVector <Calibration::Position> firstVecs;
+    QVector <double> firstTime;
+
+    readDrawTracerDebugData(fVideo, EOFirstCamera, cameraFirst, firstVecs, firstTime);
+
+
+    Calibration::ExteriorOr EOSecondCamera;
+    Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraSecond;
+    QVector <Calibration::Position> secondVecs;
+    QVector <double> secondTime;
+    readDrawTracerDebugData(sVideo, EOSecondCamera, cameraSecond, secondVecs, secondTime);
+
+    //    QString timesPath = fVideo;
+    //    timesPath.remove(".avi").append(".txt");
+
+    BallApproximator approx;
+    approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+    approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                  .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                  .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+
+    auto v1 = approx.getFirstErrors();
+    //qDebug() << "error1" << v1;
+    double coef = 0.05;
+    bool repeat = false;
+    while (v1.size() > 0 && v1.first() > coef)
+    {
+        firstTime.removeFirst();
+        firstVecs.removeFirst();
+        v1.removeFirst();
+        repeat = true;
+    }
+    while (v1.size() > 0  && v1.last() > coef)
+    {
+        firstTime.removeLast();
+        firstVecs.removeLast();
+        v1.removeLast();
+        repeat = true;
+    }
+    auto v2 = approx.getSecondErrors();
+    //qDebug() << "error2" << v2;
+    while ( v2.size() > 0  &&  v2.first() > coef)
+    {
+        secondTime.removeFirst();
+        secondVecs.removeFirst();
+        v2.removeFirst();
+        repeat = true;
+    }
+    while ( v2.size() > 0 && v2.last() > coef)
+    {
+        secondTime.removeLast();
+        secondVecs.removeLast();
+        v2.removeLast();
+        repeat = true;
+    }
+    if (repeat)
+    {
+        approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+        approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                      .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                      .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+
+    }
+
+
+    cv::VideoCapture capFirst = cv::VideoCapture(fVideo.toStdString());
+    cv::VideoCapture capSecond = cv::VideoCapture(sVideo.toStdString());
+
+
 }
 
 
