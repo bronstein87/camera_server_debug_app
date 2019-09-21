@@ -1019,7 +1019,6 @@ void CameraServer::receiveRtspVideo(qint32 port, qint32 frameCount, const QStrin
                     {
                         qDebug() << "FINISHED";
                         cameras[camera].streamIsActive = false;
-                        //cap.release();
                         break;
                     }
                 }
@@ -1029,7 +1028,6 @@ void CameraServer::receiveRtspVideo(qint32 port, qint32 frameCount, const QStrin
                     if (allowEmptyFrames == emptyFrames)
                     {
                         cameras[camera].streamIsActive = false;
-                        //cap.release();
                         break;
                     }
                     qDebug() << "empty";

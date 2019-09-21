@@ -140,8 +140,19 @@ MainWindow::MainWindow(QWidget *parent) :
         dir.mkdir("pictures");
         dir.setCurrent(QApplication::applicationDirPath());
     }
-    av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_21_19_31.avi")
-                       , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_21_19_31.avi"));
+    //av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_21_19_31.avi")
+    //                   , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_21_19_31.avi"));
+   // av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_20_56_13.avi")
+   //                    , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_20_56_13.avi"));
+
+    // rtsp://admin:dRX77QDV@10.20.55.110:554/cam/realmonitor?channel=1&subtype=0
+    qputenv("GST_DEBUG", "4");
+    QString pipeLine = QString("rtspsrc location=rtsp://10.20.55.104:554/snl/live/1/1/Ux/sido=-QBP00YJW2yhJ ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
+    cv::VideoCapture cap(pipeLine.toStdString(), cv::CAP_GSTREAMER);
+    if (cap.isOpened())
+    {
+        qDebug() << "qq";
+    }
 }
 
 MainWindow::~MainWindow()

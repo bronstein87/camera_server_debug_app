@@ -1,6 +1,7 @@
 
 #include "ballapproximator.h"
 #include <math.h>
+using namespace StrikeZone;
 BallApproximator::BallApproximator()
 {
 
@@ -244,11 +245,11 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     double yBegin = 16.55;
     bool strike = false;
     double widthInit = 0;
-    const double closeZoneY = 0;
-    const double farZoneY = 0.43;
-    const double width = 0.215;
-    const double minHeight = 0.473;
-    const double maxHeight= 1.045;//1.075;
+//    const double closeZoneY = 0;
+//    const double farZoneY = 0.43;
+//    const double width = 0.215;
+//    const double minHeight = 0.473;
+//    const double maxHeight= 1.045;//1.075;
     const double offset = 0.03;
 
     solveQuadratic(a[1] / 2, v[1], pos[1] - yBegin, t1, t2);
@@ -329,6 +330,13 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     BOKZMath::rotateOZ(-45.0 * BOKZMath::degreesToRad, mInit, mRot);
     multMatrixVector(mRot, pNoRot, rot);
     return strike;
+}
+
+void BallApproximator::getPointAt(double time, double point[])
+{
+    point[0] = xNonLinearParams[0] + xNonLinearParams[1] * time + xNonLinearParams[2] * time * time;
+    point[1] = yNonLinearParams[0] + yNonLinearParams[1] * time + yNonLinearParams[2] * time * time;
+    point[2] = zNonLinearParams[0] + zNonLinearParams[1] * time + zNonLinearParams[2] * time * time;
 }
 
 void BallApproximator::solveQuadratic(double a, double b, double c, double& x1, double& x2)

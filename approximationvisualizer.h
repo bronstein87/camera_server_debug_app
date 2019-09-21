@@ -11,6 +11,7 @@
 #include <QPainter>
 #include <qcustomplot/qcustomplot.h>
 #include <qcustomplot/cxyplotter.h>
+#include <QGraphicsBlurEffect>
 
 
 
@@ -169,7 +170,9 @@ private:
 
     void readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
                                  Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
-                                 QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime);
+                                 QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime, QVector<double>& videoTimes);
+    void drawStrikeZoneParallelepiped(Calibration::ExteriorOr& EOFirstCamera,
+                                      Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst);
 };
 
 

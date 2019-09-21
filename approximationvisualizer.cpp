@@ -1,5 +1,5 @@
 #include "approximationvisualizer.h"
-
+using namespace cv;
 ApproximationVisualizer::ApproximationVisualizer(QObject *parent) : QObject(parent), scenePicture (new QGraphicsScene()),
     fullPixmap("://resources/picture.png"), shortPixmap("://resources/picture3.png")
 {
@@ -483,14 +483,10 @@ QImage ApproximationVisualizer::makeFullPicture(BallApproximator &approx)
     return image;
 }
 
+using namespace StrikeZone;
 void ApproximationVisualizer::drawZones(Calibration::ExteriorOr& eOr, Calibration::SpacecraftPlatform::CAMERA::CameraParams& cam)
 {
     double widthInit = 0;
-    const double closeZoneY = 0;
-    const double farZoneY = 0.43;
-    const double width = 0.215;
-    const double minHeight = 0.473;
-    const double maxHeight = 1.045;//1.075;
 
     QPixmap zoneFar("://resources/zone_far.png");
 
@@ -615,7 +611,7 @@ void ApproximationVisualizer::drawLastShortPicture(bool& strike, double& vBegin,
     textItemVBegin->setDefaultTextColor(QColor(255, 255, 255));
     textItemVBegin->setPlainText(QString::number(vBegin * metersToMiles, 'f', 1));
     textItemVBegin->setPos(xSpeed, ySpeed);
-    auto effect =new QGraphicsDropShadowEffect(textItemVBegin);
+    auto effect = new QGraphicsDropShadowEffect(textItemVBegin);
     effect->setColor(QColor(0, 0, 0));
     textItemVBegin->setGraphicsEffect(effect);
 
@@ -744,7 +740,7 @@ QImage ApproximationVisualizer::makeShortPicture(BallApproximator &approx, QStri
 
 void ApproximationVisualizer::readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
                                                       Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
-                                                      QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime)
+                                                      QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime, QVector <double>& videoTimes)
 {
     qint32 num;
     if (fVideo.contains("3850")) num = 3850;
@@ -759,7 +755,7 @@ void ApproximationVisualizer::readDrawTracerDebugData(const QString& fVideo, Cal
         QString line;
         while (in.readLineInto(&line))
         {
-            fTimes.append(line.toLongLong());
+            videoTimes.append((double)line.toLongLong() / 10000000.0);
         }
     }
     QString fCoordPath = timesPath;
@@ -803,6 +799,122 @@ void ApproximationVisualizer::readDrawTracerDebugData(const QString& fVideo, Cal
 
 }
 
+void ApproximationVisualizer::drawStrikeZoneParallelepiped(Calibration::ExteriorOr& EOFirstCamera,
+                                                           Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst)
+{
+    QPolygonF fPlane;
+    Calibration::Position p;
+    double mInit [3][3] {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+    double mRot[3][3];
+    rotateOZ(-45.0 * degreesToRad, mInit, mRot);
+    double zone[3], rotZone[3];
+    zone[0] = -width;
+    zone[1] = farZoneY;
+    zone[2] = maxHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p1;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p1);
+
+
+    zone[0] = -width;
+    zone[1] = closeZoneY;
+    zone[2] = maxHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p2;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p2);
+
+    zone[0] = -width;
+    zone[1] = closeZoneY;
+    zone[2] = minHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p3;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p3);
+
+
+    zone[0] = -width;
+    zone[1] = farZoneY;
+    zone[2] = minHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p4;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p4);
+    fPlane << QPointF(p1.X, p1.Y) << QPointF(p2.X, p2.Y) << QPointF(p3.X, p3.Y) << QPointF(p4.X, p4.Y) << QPointF(p1.X, p1.Y);
+
+
+    QPolygonF sPlane;
+    zone[0] = width;
+    zone[1] = farZoneY;
+    zone[2] = minHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p5;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p5);
+
+    zone[0] = width;
+    zone[1] = farZoneY;
+    zone[2] = maxHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p6;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p6);
+    sPlane << QPointF(p1.X, p1.Y) << QPointF(p4.X, p4.Y) << QPointF(p5.X, p5.Y) << QPointF(p6.X, p6.Y) << QPointF(p1.X, p1.Y);
+
+
+    QPolygonF tPlane;
+    zone[0] = width;
+    zone[1] = closeZoneY;
+    zone[2] = maxHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p7;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p7);
+    zone[0] = width;
+    zone[1] = closeZoneY;
+    zone[2] = minHeight;
+    multMatrixVector(mRot, zone, rotZone);
+    p.X = rotZone[0];
+    p.Y = rotZone[1];
+    p.Z = rotZone[2];
+    Calibration::Position2D p8;
+    Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p8);
+    tPlane << QPointF(p5.X, p5.Y) << QPointF(p6.X, p6.Y) << QPointF(p7.X, p7.Y) << QPointF(p8.X, p8.Y) << QPointF(p5.X, p5.Y);
+
+
+    QPolygonF frPlane;
+    frPlane << QPointF(p7.X, p7.Y) << QPointF(p8.X, p8.Y) << QPointF(p3.X, p3.Y) << QPointF(p2.X, p2.Y) << QPointF(p7.X, p7.Y);
+
+    QPen pen = QPen(QBrush(QColor(255, 0, 0, 200)), 2, Qt::SolidLine, Qt::SquareCap);
+    QGraphicsPolygonItem* fPoly = new QGraphicsPolygonItem(picture);
+    fPoly->setPolygon(fPlane);
+    fPoly->setPen(pen);
+    QGraphicsPolygonItem* sPoly = new QGraphicsPolygonItem(picture);
+    sPoly->setPolygon(sPlane);
+    sPoly->setPen(pen);
+    QGraphicsPolygonItem* tPoly = new QGraphicsPolygonItem(picture);
+    tPoly->setPolygon(tPlane);
+    tPoly->setPen(pen);
+    QGraphicsPolygonItem* frPoly = new QGraphicsPolygonItem(picture);
+    frPoly->setPolygon(frPlane);
+    frPoly->setPen(pen);
+}
+
 void ApproximationVisualizer::drawTracerDebug(const QString &fVideo, const QString &sVideo)
 {
 
@@ -810,16 +922,14 @@ void ApproximationVisualizer::drawTracerDebug(const QString &fVideo, const QStri
     Calibration::ExteriorOr EOFirstCamera;
     Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraFirst;
     QVector <Calibration::Position> firstVecs;
-    QVector <double> firstTime;
-
-    readDrawTracerDebugData(fVideo, EOFirstCamera, cameraFirst, firstVecs, firstTime);
-
+    QVector <double> firstTime,  firstVideoTime;
+    readDrawTracerDebugData(fVideo, EOFirstCamera, cameraFirst, firstVecs, firstTime, firstVideoTime);
 
     Calibration::ExteriorOr EOSecondCamera;
     Calibration::SpacecraftPlatform::CAMERA::CameraParams cameraSecond;
     QVector <Calibration::Position> secondVecs;
-    QVector <double> secondTime;
-    readDrawTracerDebugData(sVideo, EOSecondCamera, cameraSecond, secondVecs, secondTime);
+    QVector <double> secondTime,  secondVideoTime;
+    readDrawTracerDebugData(sVideo, EOSecondCamera, cameraSecond, secondVecs, secondTime, secondVideoTime);
 
     //    QString timesPath = fVideo;
     //    timesPath.remove(".avi").append(".txt");
@@ -875,6 +985,181 @@ void ApproximationVisualizer::drawTracerDebug(const QString &fVideo, const QStri
 
 
     cv::VideoCapture capFirst = cv::VideoCapture(fVideo.toStdString());
+    qint32 length = capFirst.get(cv::CAP_PROP_FRAME_COUNT);
+    double initTime = firstTime.first();
+    bool startPointFound = false;
+    double point[3];
+    double delta = 166200.0 / 10000000.0;
+    Calibration::Position2D p2d, p2dPrevUp, p2dPrevDown;
+    Calibration::Position p;
+    QPainterPath path;
+    QPainterPath bottomPath;
+    QPainterPath areaPath;
+    QPainterPath linesPath;
+    QVector <QPolygonF> polygons;
+
+    cv::VideoWriter video;
+    video.open(QString("games_%1/test_video.avi")
+               .arg(QDate::currentDate().toString("dd_MM_yyyy")).toStdString(), CV_FOURCC('X','V','I','D'), 60, cv::Size(1920, 1080));
+    bool isLastPoint = false;
+
+    for (qint32 i = 0; i < length; ++i)
+    {
+        cv::Mat frame;
+        capFirst >> frame;
+
+        QElapsedTimer t;
+        t.start();
+        cvtColor(frame, frame, CV_BGR2RGB);
+        QPixmap px = QPixmap::fromImage(QImage((unsigned char*) frame.data, frame.cols, frame.rows, QImage::Format_RGB888));
+
+        scenePicture->removeItem(picture);
+        delete picture;
+        picture = new QGraphicsPixmapItem(px);
+        scenePicture->addItem(picture);
+        QGraphicsPathItem* pathItem = new QGraphicsPathItem(picture);
+        QGraphicsPathItem* areaPathItem = new QGraphicsPathItem(picture);
+        QGraphicsPathItem* linesPathItem = new QGraphicsPathItem(picture);
+        QGraphicsPathItem* bottomPathItem = new QGraphicsPathItem(picture);
+
+        drawStrikeZoneParallelepiped(EOFirstCamera, cameraFirst);
+
+        if (abs(firstVideoTime[i] - abs(initTime)) < delta && !startPointFound)
+        {
+            startPointFound = true;
+            approx.getPointAt(firstVideoTime[i] - abs(initTime) - delta, point);
+            p.X = point[0];
+            p.Y = point[1];
+            p.Z = point[2];
+            Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p2d);
+            path.moveTo(p2d.X, p2d.Y);
+
+            p.X = point[0];
+            p.Y = point[1];
+            p.Z = 0;
+            p2dPrevUp = p2d;
+            Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p2d);
+            p2dPrevDown = p2d;
+
+            //linesPath.moveTo(p2dPrevUp.X, p2dPrevUp.Y + 10);
+            //linesPath.lineTo(p2dPrevDown.X, p2dPrevDown.Y);
+
+        }
+
+        if (startPointFound && !isLastPoint)
+        {
+            approx.getPointAt(firstVideoTime[i] - abs(initTime), point);
+            p.X = point[0];
+            p.Y = point[1];
+            p.Z = point[2];
+            Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p2d);
+            path.lineTo(p2d.X, p2d.Y);
+            p.X = point[0];
+            p.Y = point[1];
+            p.Z = 0;
+            QPolygonF pl;
+            auto plUp = QPointF(p2dPrevUp.X, p2dPrevUp.Y);
+            auto plDown = QPointF(p2dPrevDown.X, p2dPrevDown.Y);
+            // pl << QPointF(p2dPrevUp.X, p2dPrevUp.Y) << QPointF(p2dPrevDown.X, p2dPrevDown.Y);
+            p2dPrevUp = p2d;
+            Calibration::GetXYfromXYZ(EOFirstCamera, cameraFirst, p, p2d);
+            p2dPrevDown = p2d;
+            //pl << QPoint(100, 200) << QPoint(200, 200) << QPoint(200, 300) << QPoint(100, 300);
+            pl <<  plUp <<  plDown << QPointF(p2dPrevDown.X, p2dPrevDown.Y) << QPointF(p2dPrevUp.X, p2dPrevUp.Y);
+            polygons.append(pl);
+            //pl << QPointF(p2dPrevUp.X, p2dPrevUp.Y) << QPointF(p2dPrevDown.X, p2dPrevDown.Y);
+            //pl << QPointF(p2dPrevDown.X, p2dPrevDown.Y) << QPointF(p2dPrevUp.X, p2dPrevUp.Y);
+            //linesPath.moveTo(plUp);
+            areaPath.addPolygon(pl);
+            areaPath.closeSubpath();
+            linesPath.moveTo(p2dPrevUp.X, p2dPrevUp.Y + 10);
+            linesPath.lineTo(p2dPrevDown.X, p2dPrevDown.Y);
+            bottomPath.moveTo(plDown);
+            bottomPath.lineTo(p2dPrevDown.X, p2dPrevDown.Y);
+            double mInit [3][3] {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+            double mRot[3][3];
+            rotateOZ(45.0 * degreesToRad, mInit, mRot);
+            double rot[3];
+            multMatrixVector(mRot, point, rot);
+            if (rot[1] < 0)
+            {
+                isLastPoint = true;
+            }
+        }
+
+        int cRed = 255;
+        int cBlue = 206;
+        for (qint32 j = 0; j < polygons.size(); ++j)
+        {
+            QGraphicsPolygonItem* poly = new QGraphicsPolygonItem(picture);
+            poly->setPolygon(polygons[j]);
+
+            QColor c;// = QColor(255 - 3 * j, 206 - 1.5 * j, 250, 50);
+
+            if (j <= firstTime.size() / 2)
+            {
+                c = QColor(cRed, cBlue, 250, 50);
+                cRed -= 5;
+                cBlue -= 3;
+                // qDebug() << c.red() << c.green() << c.blue();
+            }
+            else
+            {
+                c = QColor(cRed, cBlue, 250, 50);
+                cRed += 5;
+                cBlue += 3;
+            }
+            poly->setBrush(QBrush(c));
+            poly->setPen(QPen(QBrush(c), 1, Qt::SolidLine, Qt::SquareCap));
+        }
+        //        areaPathItem->setPen(QPen(QBrush(QColor(135, 206, 250, 20)), 1, Qt::SolidLine, Qt::RoundCap));
+        //        areaPathItem->setBrush(QBrush(QColor(135, 206, 250, 50)));
+        //        areaPathItem->setPath(areaPath);
+
+
+        //        QLinearGradient grad;
+        //        grad.setColorAt(0, QColor(135, 206, 250, 10));
+        //        grad.setColorAt(0.5, QColor(135, 206, 250, 200));
+        //        grad.setColorAt(1, QColor(135, 206, 250, 10));
+        //linesPathItem->setPen(QPen(QBrush(/*grad*/QColor(135, 206, 250, 100)), 20, Qt::SolidLine, Qt::SquareCap));
+        //linesPathItem->setPath(linesPath);
+        //auto blur = new QGraphicsBlurEffect();
+        //blur->setBlurRadius(3);
+
+
+                bottomPathItem->setPen(QPen(QBrush(QColor(30, 144, 255, 150)), 7, Qt::SolidLine, Qt::RoundCap));
+        //bottomPathItem->setGraphicsEffect(blur);
+        // qDebug() << blur->blurHints() << blur->blurRadius();
+       bottomPathItem->setPath(bottomPath);
+
+
+        //pathItem->setGraphicsEffect(new QGraphicsBlurEffect());
+       pathItem->setPen(QPen(QBrush(QColor(135, 206, 250, 100)), 7, Qt::SolidLine, Qt::RoundCap));
+        pathItem->setPath(path);
+
+
+        scenePicture->setSceneRect(scenePicture->itemsBoundingRect());
+        QImage image = QImage (scenePicture->sceneRect().size().toSize(), QImage::Format_ARGB32);
+        image.fill(Qt::transparent);
+
+        QPainter painter(&image);
+        scenePicture->render(&painter);
+        qDebug() << t.elapsed() << image.format();
+        QElapsedTimer tt;
+        tt.start();
+        qDebug() << tt.elapsed();
+        qDebug() << "qq";
+        Mat m(image.height(), image.width(), CV_8UC4, (void*)image.constBits());
+        cvtColor(m, m, CV_RGBA2RGB);
+       // imwrite(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_18_09_2019/test2.jpg").toStdString(), m);
+        //image.save("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_18_09_2019/test.jpg");
+
+        //  cv::Mat mat(image.rows(),image.cols(),CV_8UC3,image.scanline())
+        qDebug() << m.cols << m.rows << video.isOpened();
+        video.write(m);
+    }
+
+
     cv::VideoCapture capSecond = cv::VideoCapture(sVideo.toStdString());
 
 

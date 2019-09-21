@@ -10,7 +10,17 @@
 
 
 
+namespace StrikeZone
+{
+constexpr const double closeZoneY = 0;
+constexpr const double farZoneY = 0.43;
+constexpr const double width = 0.215;
+constexpr const double minHeight = 0.473;
+constexpr const double maxHeight= 1.045;
+}
+
 using namespace BOKZMath;
+using namespace StrikeZone;
 class BallApproximator : QObject
 {
     Q_OBJECT
@@ -34,6 +44,8 @@ public:
     bool calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
                                     double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
                                     double& xBegin, double rot[], double &W);
+
+    void getPointAt(double time, double point[3]);
 
     void  getXLinearParameters(double res[3])
     {
