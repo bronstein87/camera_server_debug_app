@@ -287,7 +287,14 @@ void CameraOptionsWindow::handleCurrentCameraParams(QTcpSocket* camera, const Cu
         ui->circularityDoubleSpinBox->blockSignals(true);
         ui->circularityDoubleSpinBox->setValue(params.recParams.circularityCoeff);
         ui->circularityDoubleSpinBox->blockSignals(false);
-        //RecognizeParameters recParams;
+
+        ui->xDirDoubleSpinBox->blockSignals(true);
+        ui->xDirDoubleSpinBox->setValue(params.recParams.dirX);
+        ui->xDirDoubleSpinBox->blockSignals(false);
+
+        ui->yDirDoubleSpinBox->blockSignals(true);
+        ui->yDirDoubleSpinBox->setValue(params.recParams.dirY);
+        ui->yDirDoubleSpinBox->blockSignals(false);
 
         ui->debugRecFlagCheckBox->blockSignals(true);
         ui->debugRecFlagCheckBox->setChecked(params.debugRecFlag);
@@ -326,6 +333,16 @@ void CameraOptionsWindow::setCurrentCamera(QTcpSocket* socket, EditFrameQGraphic
 bool CameraOptionsWindow::showExposureVerbose()
 {
     return ui->exposureMessageCheckBox->isChecked();
+}
+
+bool CameraOptionsWindow::getShowResults()
+{
+    return ui->showResultsCheckBox->isChecked();
+}
+
+bool CameraOptionsWindow::getShowAutoCalibrate()
+{
+    return ui->showAutoCalibrateCheckBox->isChecked();
 }
 
 void CameraOptionsWindow::on_gammaSlider_valueChanged(int value)
@@ -1088,13 +1105,13 @@ void CameraOptionsWindow::on_skoCountDoubleSpinBox_editingFinished()
 void CameraOptionsWindow::on_fullPictureCheckBox_clicked(bool checked)
 {
     auto& av = ApproximationVisualizer::instance();
-    av.createfullPicture(checked);
+    av.createFullPicture(checked);
 }
 
 void CameraOptionsWindow::on_shortPictureCheckBox_clicked(bool checked)
 {
     auto& av = ApproximationVisualizer::instance();
-    av.createshortPicture(checked);
+    av.createShortPicture(checked);
 }
 
 void CameraOptionsWindow::on_turnOnSyncFrameEveryCheckBox_toggled(bool checked)
@@ -1129,10 +1146,10 @@ void CameraOptionsWindow::loadSettings()
                                       ui->updateEVOAutoCalibrateCheckBox->isChecked(),
                                       flag);
     ApproximationVisualizer& av = ApproximationVisualizer::instance();
-    av.createfullPicture(settings.value("big_picture", true).toBool());
-    ui->fullPictureCheckBox->setChecked(av.isfullPicture());
-    av.createshortPicture(settings.value("small_picture", true).toBool());
-    ui->shortPictureCheckBox->setChecked(av.isshortPicture());
+    av.createFullPicture(settings.value("big_picture", true).toBool());
+    ui->fullPictureCheckBox->setChecked(av.isFullPicture());
+    av.createShortPicture(settings.value("small_picture", true).toBool());
+    ui->shortPictureCheckBox->setChecked(av.isShortPicture());
     av.setUpdateGraph(settings.value("update_graph", true).toBool());
     ui->updateGraphsCheckBox->setChecked(av.getUpdateGraph());
     ui->updateEVOAutoCalibrateCheckBox->setChecked(settings.value("update_evo_autocalibrate", false).toBool());
@@ -1146,8 +1163,8 @@ void CameraOptionsWindow::saveSettings()
     settings.setValue("sync_frame_every", ui->syncFrameEverySpinBox->value());
     ApproximationVisualizer& av = ApproximationVisualizer::instance();
 
-    settings.setValue("big_picture", av.isfullPicture());
-    settings.setValue("small_picture", av.isshortPicture());
+    settings.setValue("big_picture", av.isFullPicture());
+    settings.setValue("small_picture", av.isShortPicture());
     settings.setValue("update_graph",  av.getUpdateGraph());
     settings.setValue("compare_flag", flag);
     settings.setValue("update_evo_autocalibrate", ui->updateEVOAutoCalibrateCheckBox->isChecked());
@@ -1169,15 +1186,55 @@ void CameraOptionsWindow::on_turnOnRecogAllCamerasCheckBox_toggled(bool checked)
 
 void CameraOptionsWindow::on_compareCurrentRadioButton_toggled(bool checked)
 {
+    Q_UNUSED(checked)
     flag = Current;
 }
 
 void CameraOptionsWindow::on_compareReferenceRadioButton_toggled(bool checked)
 {
+    Q_UNUSED(checked)
     flag = Reference;
 }
 
 void CameraOptionsWindow::on_compareNeibRadioButton_toggled(bool checked)
 {
+    Q_UNUSED(checked)
     flag = None;
+}
+
+void CameraOptionsWindow::on_xDirDoubleSpinBox_editingFinished()
+{
+    CameraOptions opt;
+    opt.recParams.dirX = ui->xDirDoubleSpinBox->value();
+    cameraServer->sendParametersToCamera(opt, currentCamera);
+}
+
+void CameraOptionsWindow::on_yDirDoubleSpinBox_editingFinished()
+{
+    CameraOptions opt;
+    opt.recParams.dirY = ui->yDirDoubleSpinBox->value();
+    cameraServer->sendParametersToCamera(opt, currentCamera);
+}
+
+void CameraOptionsWindow::on_turnOnScenarioCheckBox_toggled(bool checked)
+{
+    auto& av = ApproximationVisualizer::instance();
+    if (checked)
+    {
+        av.runRepeatStream();
+    }
+    else
+    {
+        av.stopRepeatStream();
+    }
+}
+
+void CameraOptionsWindow::on_chooseMainHitROIPushButton_clicked()
+{
+
+}
+
+void CameraOptionsWindow::on_showMainHitPushButton_clicked()
+{
+
 }

@@ -12,6 +12,9 @@
 #include <qcustomplot/qcustomplot.h>
 #include <qcustomplot/cxyplotter.h>
 #include <QGraphicsBlurEffect>
+#include <limits.h>
+
+
 
 
 
@@ -21,11 +24,42 @@ class ApproximationVisualizer : public QObject
 public:
 
 
+    enum RepeatVisualizeState
+    {
+        ShowInit,
+        ShowResultPicture,
+        ShowRepeat,
+        Invalid = -1
+    };
+
     struct  CalibData
     {
         QDateTime dt;
         Calibration::ExteriorOr eOr;
     };
+
+    static ApproximationVisualizer& instance() noexcept
+    {
+        static ApproximationVisualizer av;
+        return av;
+    }
+
+    struct RepeatVisualizeData
+    {
+        bool startPointFound = false;
+        bool isLastPoint = false;
+        QPainterPath path;
+        QPainterPath bottomPath;
+        QPainterPath areaPath;
+        QPainterPath linesPath;
+        QRectF closeZoneEllipse;
+        QRectF farZoneEllipse;
+        QVector <QPolygonF> polygons;
+        Calibration::Position2D p2dPrevUp;
+        Calibration::Position2D p2dPrevDown;
+    };
+
+
 
     QVector <QImage> createApproxVisualisation(BallApproximator& approx, QString info);
 
@@ -33,34 +67,21 @@ public:
 
     void plotCalibrate(QMap <qint32, Calibration::ExteriorOr>& map, CompareFlag compareFlag);
 
-    void setPlots(const QVector <QCustomPlot*>& _plots)
-    {
-        plots = _plots;
-        for (qint32 i = ObjCountGraph; i <  CalibSecondGraph + 1; ++i)
-        {
-            plotSyncLines.append(new QCPItemStraightLine(plots[i]));
-            plotSyncLines.last()->point1->setCoords(0, 0);
-            plotSyncLines.last()->point2->setCoords(0, 0);
-        }
-    }
+    void runRepeatStream();
 
-    void initCamerasPlots(const QMap <qint32, QColor>& map)
-    {
-        colorMap = map;
-        for (auto& i : colorMap.keys())
-        {
-            measuresMap.insert(i, QVector <Measure> ());
-            calibMap.insert(i, QVector <CalibData>());
-        }
-    }
+    void stopRepeatStream();
 
-    void createfullPicture (bool flag) {fullPicture = flag;}
+    void setPlots(const QVector <QCustomPlot*>& _plots);
 
-    bool isfullPicture() {return fullPicture;}
+    void initCamerasPlots(const QMap <qint32, QColor>& map);
 
-    void createshortPicture(bool flag) {shortPicture = flag;}
+    void createFullPicture(bool flag) {fullPicture = flag;}
 
-    bool isshortPicture() {return shortPicture;}
+    void createShortPicture(bool flag) {shortPicture = flag;}
+
+    bool isFullPicture() {return fullPicture;}
+
+    bool isShortPicture() {return shortPicture;}
 
     qint32 getHistorySize() {return measuresMap.first().size();}
 
@@ -76,45 +97,57 @@ public:
 
     void drawTracerDebug(const QString& fVideo, const QString& sVideo);
 
-    void clearCalibGraphs()
-    {
-        if (!plots.isEmpty())
-        {
-            plots[CalibFirstGraph]->clearGraphs();
-            plots[CalibSecondGraph]->clearGraphs();
-        }
+    void clearCalibGraphs();
 
-    }
-
-    static ApproximationVisualizer& instance() noexcept
-    {
-        static ApproximationVisualizer av;
-        return av;
-    }
+    double calculateBatterPositionCorr(qint32 number, cv::Mat img);
 
     QMap <qint32, QVector <CalibData>> getCalibMap() {return calibMap;}
 
+    //void resetRepeatVisualise() {repeatData = RepeatVisualizeData();}
+
+    void setCurrentRepeatState(RepeatVisualizeState state, double time = -1, cv::Mat mat = cv::Mat());
+
+    void setLastApproximation(QSharedPointer <BallApproximator> lastApprox);
+
+    bool appendRepeatFrame(qint32 camNum, cv::Mat frame, double time);
+
+    void setCorrCoef(qint32 camNum, double coef);
+
+    void setRepeatCameraNumber(qint32 number);
+
+    void setRepeatInitTime(qint32 num, double time);
+
+    RepeatVisualizeState getCurrentState() {return currentRepeatState;}
+
+    bool isScenarioRun() {return repeatThreadRun;}
+
+    void clearRepeatCameraNumber() {scenarioData.repeats.clear();}
+
+    cv::Mat drawBallTracer(RepeatVisualizeData& repeatData, QPixmap& px, Calibration::ExteriorOr& EOFirstCamera,
+                           Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
+                           BallApproximator& approx, double videoTime, double initTime);
+
     double tBegin, tEnd, T, vBegin,
     vEnd, dxNoRot, dzNoRot, zBegin,
-    xBegin, W; // tmp
+    xBegin, W, tFarZone; // tmp
 
     double rot[3];
 
 
+
 signals:
     void measureCountChanged(qint32 count);
+
+
 private:
 
     struct Measure
     {
-
         QVector <double> error;
         QVector <double> timeDelta;
         qint32 objCount;
         QDateTime time;
     };
-
-
 
     enum GraphIndex
     {
@@ -124,6 +157,31 @@ private:
         CalibFirstGraph,
         CalibSecondGraph
     };
+
+    struct CorrTime
+    {
+        CorrTime() {}
+        CorrTime(double _corr, double _initTime) : corr(_corr), initTime(_initTime){}
+        double corr;
+        double initTime;
+    };
+
+    struct ScenarioData
+    {
+        cv::Mat initPicture;
+        cv::Mat resultPicture;
+        QElapsedTimer timer;
+        //QLinkedList <QPair <cv::Mat, double>> repeat;
+        double waitTime = -1;
+        Calibration::ExteriorOr EOcamera;
+        Calibration::SpacecraftPlatform::CAMERA::CameraParams camera;
+        QSharedPointer <BallApproximator> approx;
+        qint32 cameraNumber;
+        bool corrConflictResolved = false;
+        QMap <qint32, QPair <CorrTime, QLinkedList <QPair <cv::Mat, double>>>> repeats;
+        QMap <qint32, cv::Rect> scaleRects;
+    };
+
 
     ApproximationVisualizer(QObject* parent = nullptr);
 
@@ -146,6 +204,18 @@ private:
 
     void drawZones(Calibration::ExteriorOr& eOr, Calibration::SpacecraftPlatform::CAMERA::CameraParams& cam);
 
+    void readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
+                                 Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
+                                 QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime, QVector<double>& videoTimes);
+
+
+    void drawStrikeZoneParallelepiped(Calibration::ExteriorOr& EOFirstCamera,
+                                      Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst, QGraphicsItem* parent);
+
+    void runRepeatStreamInternal();
+
+    void handleNewScenarioState(RepeatVisualizeState state, cv::Mat mat, double time, bool clear);
+
 
 
     QGraphicsScene* scenePicture = nullptr;
@@ -162,17 +232,20 @@ private:
     QVector <QCPItemStraightLine*>  plotSyncLines;
     QPixmap fullPixmap;
     QPixmap shortPixmap;
+    QMap <qint32, cv::Rect> batterSearchZones;
+
+    QMutex scenarioMutex;
+    ScenarioData scenarioData;
+    cv::VideoWriter outWindow;
+    RepeatVisualizeState currentRepeatState = ShowInit;
+    QAtomicInteger <qint32> repeatThreadRun = 0;
 
     constexpr const static qint32 ballCount = 21;
     constexpr const static double ballSize = 7.3;
     constexpr const static double coeff = 25;
 
 
-    void readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
-                                 Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
-                                 QVector <Calibration::Position>& firstVecs, QVector <double>& firstTime, QVector<double>& videoTimes);
-    void drawStrikeZoneParallelepiped(Calibration::ExteriorOr& EOFirstCamera,
-                                      Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst);
+
 };
 
 

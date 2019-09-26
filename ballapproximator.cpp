@@ -7,6 +7,11 @@ BallApproximator::BallApproximator()
 
 }
 
+BallApproximator::~BallApproximator()
+{
+
+}
+
 void BallApproximator::readInitData(const QString &path, double deltaT,bool writeToFile)
 {
     double lenght;
@@ -233,7 +238,7 @@ double &t1, double &t2, double coord1[3], double coord2[3])
 
 bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
                                                   double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
-                                                  double& xBegin, double rot[3], double & W)
+                                                  double& xBegin, double rot[3], double& W, double& tFarZone)
 {
     double pos[3], v[3], a[3];
     rotateMovementParameters(pos, v , a);
@@ -262,7 +267,7 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     tBegin = t2;
     vBegin = sqrt(vxBegin * vxBegin + vyBegin * vyBegin + vzBegin * vzBegin);
 
-    double yEnd = 0;
+    //double yEnd = 0;
     solveQuadratic(a[1] / 2, v[1], pos[1] - closeZoneY, t1, t2);
     double xEnd = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
     double zEnd = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
@@ -281,6 +286,7 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     solveQuadratic(a[1] / 2, v[1], pos[1] - farZoneY, t1, t2);
     double xFarEnd = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
     double zFarEnd = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
+    tFarZone = t2;
     if (xFarEnd <= width + widthInit + offset && xFarEnd >= widthInit - width - offset
             && zFarEnd >= minHeight - offset && zFarEnd <= maxHeight + offset)
     {
@@ -296,9 +302,9 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     const double g = 9.8066;
     double axMag = a[0] - a[1] * vxMag/vyMag;
     double azMag = a[2] + g - a[1] * vzMag / vyMag;
-    double deltaAx = a[0] - axMag;
-    double deltaAy = a[1] + axMag * (vxMag/vyMag) + azMag * (vzMag / vyMag);
-    double deltaAz = a[2] + g - azMag;
+    //double deltaAx = a[0] - axMag;
+    //double deltaAy = a[1] + axMag * (vxMag/vyMag) + azMag * (vzMag / vyMag);
+    //double deltaAz = a[2] + g - azMag;
 
     double axNoRot = a[0] - axMag;
     double azNoRot = a[2] - azMag;
@@ -314,7 +320,7 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     double rho = 1.225;
     double m = 0.143;
     double K = 1.0 / 2.0 * rho * A / m;
-    double CD = sqrt(deltaAz * deltaAz  + deltaAy * deltaAy + deltaAz * deltaAz) / (K * vyMag * vMag);
+    //double CD = sqrt(deltaAz * deltaAz  + deltaAy * deltaAy + deltaAz * deltaAz) / (K * vyMag * vMag);
     double CL = sqrt(axMag * axMag + azMag * azMag) / (K * vMag * vMag);
     double S = -(583.0 * CL) / (2333.0 * CL - 1120.0);
     double metersToMiles =  3.6 / 1.609;
@@ -1170,9 +1176,9 @@ void BallApproximator::NEWT(double *X)
 
 void BallApproximator::ERRORS(double *X)
 {
-    double W,Q[nonLinearParamsCount],E[nonLinearParamsCount],
+    double W,Q[nonLinearParamsCount],/*E[nonLinearParamsCount],*/
             A[nonLinearParamsCount][nonLinearParamsCount],
-            B[nonLinearParamsCount][nonLinearParamsCount],
+            //B[nonLinearParamsCount][nonLinearParamsCount],
             AX[3*maxNumberOfMeasures][nonLinearParamsCountPlus];
     double P[3],S,R,DT,DT2;
     int I,J,K;
@@ -1413,7 +1419,7 @@ void BallApproximator::MINFIT(int M, int N, int P, double EPS, double TOL, doubl
 
     // accumulation of right-hand transformations
     for (I=N-1; I>=0; I--) {
-        if (G!=0) {
+        if (G != 0) {
             H=AB[I][I+1]*G;
             for (J=L; J<N; J++) AB[J][I]=AB[I][J]/H;
             for (J=L; J<N; J++) {

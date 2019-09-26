@@ -22,10 +22,11 @@ public:
         OMEGA, KAPPA, PHI
     };
 
-    static int baseball_cam_counts;
     struct Position
     {
-        double X, Y, Z;
+        double X = 0;
+        double Y = 0;
+        double Z = 0;
     };
 
     struct Limits
@@ -47,7 +48,9 @@ public:
     //Повороты из Объектной СК в снимок; порядок повортов такой: 1) Omega, вокруг оси X по часовой, Phi вокруг оси Y по часовой, Kappa вокруг оси Z по часовой
     struct RotAngles
     {
-        double Omega, Phi, Kappa;
+        double Omega = 0;
+        double Phi = 0;
+        double Kappa = 0;
     };
 
 

@@ -5,13 +5,9 @@
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
-//#include <opencv2/cudaimgproc.hpp>
-//#include <opencv2/cudaarithm.hpp>
-//#include <opencv2/cudacodec.hpp>
 #include <QFile>
 #include <QTextStream>
 #include <calibration.h>
-#include <calibrationadjusthelper.h>
 #include <QXmlStreamReader>
 #include <QDateTime>
 #include <cameraserver.h>
@@ -45,17 +41,22 @@ public:
     void recalibrate(QVector <qint32> exludePoints, Calibration::ExteriorOr& EO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& camera,
                      Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera, bool save);
 
-    void autoCalibrate(QTcpSocket* cam, qint32 number, CameraServer* server, Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera);
+    cv::Mat autoCalibrate(QTcpSocket* cam, qint32 number, CameraServer* server, Calibration::ExteriorOr& newEO,
+                          Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera);
 
-    static void readCurrentCalibrationParameters(qint32 cameraNumber, const QString& path, Calibration::ExteriorOr& EO,
-                                                 Calibration::SpacecraftPlatform::CAMERA::CameraParams& Camera, bool current = false,
-                                                 qint32 w = 1936, qint32 h = 1216);
     void setCompareFlag(CompareFlag flag) {compareFlag = flag;}
 
     void setSaveAutoCalibrate(bool flag) {saveAutoCalibrate = flag;}
 
     void updateCalibrateInfo(qint32 cameraNum,  Calibration::ExteriorOr& eo);
 
+    static void readCurrentCalibrationParameters(qint32 cameraNumber, const QString& path, Calibration::ExteriorOr& EO,
+                                                 Calibration::SpacecraftPlatform::CAMERA::CameraParams& Camera, bool current = false,
+                                                 qint32 w = 1936, qint32 h = 1216);
+
+
+signals:
+    void autoCalibrateImageReady(cv::Mat img, qint32 number);
 
 private:
 
@@ -64,12 +65,10 @@ private:
                         bool useCameraCalibration,
                         Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera);
 
-
+    void updateCalibrateInfoFrames(Calibration::SpacecraftPlatform::CAMERA::CameraParams &camera, Calibration::ExteriorOr& newEO);
 
     QVector <CalibratePointData> data;
     QVector <CalibratePointData> dataInit;
-    Calibration::SpacecraftPlatform::CAMERA::CameraParams newCamera;
-    Calibration::ExteriorOr newEO;
     cv::Mat refImage;
     cv::Mat corImageInt;
     QVector <double> diffXVec;
@@ -80,8 +79,11 @@ private:
     static constexpr const qint32 h = 1216;
     static constexpr const qint32 whd = 1920;
     static constexpr const qint32 hhd = 1080;
+    static QMap <qint32, QVector <Calibration::ExteriorOr>> extOrSamples;
     bool saveAutoCalibrate = false;
     CompareFlag compareFlag = None;
+
+
 
 };
 

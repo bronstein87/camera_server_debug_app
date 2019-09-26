@@ -1,5 +1,7 @@
 #include "calibrationadjusthelper.h"
 using namespace cv;
+
+QMap <qint32, QVector <Calibration::ExteriorOr>> CalibrationAdjustHelper::extOrSamples;
 CalibrationAdjustHelper::CalibrationAdjustHelper(QObject *parent) : QObject(parent)
 {
 
@@ -42,7 +44,7 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString& refImagePath, q
                 d.y3d = pos.Y;
                 d.z = pos.Z;
                 data.append(d);
-                if (data.size() > 50) break;
+                if (data.size() > 50) break; //tmp
             }
         }
     }
@@ -74,7 +76,7 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString& refImagePath, q
         patterns.append(refImage(r));
         if (savePattens)
         {
-            // imwrite(QString("calibrate/patterns/%1.png").arg(i).toStdString(), patterns.last());
+            imwrite(QString("calibrate/patterns/%1.png").arg(i).toStdString(), patterns.last());
         }
     }
 
@@ -87,6 +89,9 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString& refImagePath, q
 
         if (r.x < 0 || r.y < 0 || r.x + r.width > whd || r.y + r.height > hhd)
         {
+            diffXVec.append(0);
+            diffYVec.append(0);
+            corrs.append(-1);
             continue;
         }
 
@@ -116,7 +121,6 @@ Mat CalibrationAdjustHelper::createCalibrateImage(const QString& refImagePath, q
         diffYVec.append(diffY);
         corrs.append(maxVal);
 
-        //qDebug() << i << data[i].x3d << data[i].y3d << data[i].z << data[i].x << data[i].y << x + size << y + size;
         data[i].x = x + size;
         data[i].y = y + size;
 
@@ -175,6 +179,24 @@ void CalibrationAdjustHelper::updateCalibrateInfo(qint32 cameraNum,  Calibration
     }
 }
 
+void CalibrationAdjustHelper::updateCalibrateInfoFrames(Calibration::SpacecraftPlatform::CAMERA::CameraParams& camera, Calibration::ExteriorOr& newEO)
+{
+    updateCalibrateInfo(camera.name.toInt(), newEO);
+    QString newImageName = QString("calibrate/new%1.png")
+            .arg(camera.name);
+    if (QFile::exists(newImageName))
+    {
+        QString oldImageName = QString("calibrate/old%1.png")
+                .arg(camera.name);
+        if (QFile::exists(oldImageName))
+        {
+            Q_ASSERT(QFile::remove(oldImageName));
+        }
+        QFile::rename(newImageName, oldImageName);
+    }
+    imwrite(newImageName.toStdString(), corImageInt);
+}
+
 void CalibrationAdjustHelper::recalibrate(QVector <qint32> excludePoints, Calibration::ExteriorOr& EO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& camera,
                                           Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera, bool save)
 {
@@ -198,24 +220,11 @@ void CalibrationAdjustHelper::recalibrate(QVector <qint32> excludePoints, Calibr
     testAdjustment(EO, camera, pos, pos2D, false, newEO, newCamera);
     if (save)
     {
-        updateCalibrateInfo(camera.name.toInt(), newEO);
-        QString newImageName = QString("calibrate/new%1.png")
-                .arg(camera.name);
-        if (QFile::exists(newImageName))
-        {
-            QString oldImageName = QString("calibrate/old%1.png")
-                    .arg(camera.name);
-            if (QFile::exists(oldImageName))
-            {
-                Q_ASSERT(QFile::remove(oldImageName));
-            }
-            QFile::rename(newImageName, oldImageName);
-        }
-        imwrite(newImageName.toStdString(), corImageInt);
+        updateCalibrateInfoFrames(newCamera, newEO);
     }
 }
 
-void CalibrationAdjustHelper::autoCalibrate(QTcpSocket* cam, qint32 number, CameraServer* server, Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera)
+cv::Mat CalibrationAdjustHelper::autoCalibrate(QTcpSocket* cam, qint32 number, CameraServer* server, Calibration::ExteriorOr& newEO, Calibration::SpacecraftPlatform::CAMERA::CameraParams& newCamera)
 {
     Mat frame = server->getLastCameraFrame(cam);
     if (!frame.empty())
@@ -223,13 +232,14 @@ void CalibrationAdjustHelper::autoCalibrate(QTcpSocket* cam, qint32 number, Came
         Mat fullFrame = Mat(Size(1936, 1216), CV_8UC3);
         frame.copyTo(fullFrame(Rect(0, 0, 1920, 1080)));
         savePattens = false;
+        cv::Mat mat;
         if (compareFlag == Current)
         {
-            createCalibrateImage(QString("calibrate/new%1.png").arg(number), number, fullFrame, 35, 100, 100, true);
+           mat = createCalibrateImage(QString("calibrate/new%1.png").arg(number), number, fullFrame, 35, 100, 100, true);
         }
         else
         {
-            createCalibrateImage(QString("calibrate/standart%1.bmp").arg(number), number, fullFrame, 35, 100, 100, false);
+            mat = createCalibrateImage(QString("calibrate/standart%1.png").arg(number), number, fullFrame, 35, 100, 100, false);
         }
 
         savePattens = true;
@@ -244,6 +254,7 @@ void CalibrationAdjustHelper::autoCalibrate(QTcpSocket* cam, qint32 number, Came
                 excludePoints.append(i);
             }
         }
+
         qDebug() << number << excludePoints;
         Calibration::ExteriorOr eOr;
         Calibration::SpacecraftPlatform::CAMERA::CameraParams camOld;
@@ -257,7 +268,32 @@ void CalibrationAdjustHelper::autoCalibrate(QTcpSocket* cam, qint32 number, Came
             readCurrentCalibrationParameters(number, "calibrate/", eOr, camOld, false);
         }
         recalibrate(excludePoints, eOr, camOld, newEO, newCamera, saveAutoCalibrate);
+        if (excludePoints.size() < 3)
+        {
+            if (!extOrSamples.contains(number))
+            {
+                extOrSamples.insert(number, QVector <Calibration::ExteriorOr>());
+            }
+            extOrSamples[number].append(newEO);
+            if (extOrSamples[number].size() > 30)
+            {
+                Calibration::ExteriorOr meanEO;
+                for (qint32 i = 0; i < extOrSamples[number].size(); ++i)
+                {
+                    meanEO.Point.X += extOrSamples[number][i].Point.X / extOrSamples[number].size();
+                    meanEO.Point.Y += extOrSamples[number][i].Point.Y / extOrSamples[number].size();
+                    meanEO.Point.Z += extOrSamples[number][i].Point.Z / extOrSamples[number].size();
+                    meanEO.OPK.Omega += extOrSamples[number][i].OPK.Omega / extOrSamples[number].size();
+                    meanEO.OPK.Phi += extOrSamples[number][i].OPK.Phi / extOrSamples[number].size();
+                    meanEO.OPK.Kappa += extOrSamples[number][i].OPK.Kappa / extOrSamples[number].size();
+                }
+                updateCalibrateInfoFrames(newCamera, meanEO);
+                extOrSamples[number].clear();
+            }
+        }
+        return mat;
     }
+    return cv::Mat();
 }
 
 void CalibrationAdjustHelper::readCurrentCalibrationParameters(qint32 cameraNumber, const QString& path, Calibration::ExteriorOr& EO,

@@ -21,11 +21,13 @@ constexpr const double maxHeight= 1.045;
 
 using namespace BOKZMath;
 using namespace StrikeZone;
-class BallApproximator : QObject
+class BallApproximator : public QObject
 {
     Q_OBJECT
 public:
     BallApproximator();
+
+    ~BallApproximator();
 
     void calculateApproximation(const QString& resultPath, bool writeToFile);
 
@@ -43,7 +45,7 @@ public:
 
     bool calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
                                     double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
-                                    double& xBegin, double rot[], double &W);
+                                    double& xBegin, double rot[], double &W, double& tFarZone);
 
     void getPointAt(double time, double point[3]);
 
@@ -143,7 +145,6 @@ public:
     static const int maxNumberOfMeasures = 200;
 
 private:
-
 
 
     static const int numberResults = 1;

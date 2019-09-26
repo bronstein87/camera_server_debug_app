@@ -10,6 +10,12 @@
 #include <opencv2/core.hpp>
 using namespace cv;
 
+struct TestSt
+{
+    qint32 cnt = 60;
+
+};
+
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent), server(new CameraServer()),
     ui(new Ui::MainWindow), sync(new Synchronizer), optionsWindow(new CameraOptionsWindow(sync.data(), server)),
@@ -106,15 +112,35 @@ MainWindow::MainWindow(QWidget *parent) :
                                QImage(static_cast <uchar*> (imgRgb.data), mat.cols, mat.rows, mat.step, QImage::Format_RGB888)));
     });
 
+
+
+    connect(server, &CameraServer::autoCalibrateImageReady, this, [this](auto mat, auto socket)
+    {
+        if (optionsWindow->getShowAutoCalibrate())
+        {
+            ZoomGraphicsView* view = camerasGUI[socket].view;
+            Mat imgRgb;
+            cvtColor(mat, imgRgb, CV_BGR2RGB);
+            static_cast <EditFrameQGraphicsScene*> (view->scene())
+                    ->setFrame(QPixmap::fromImage(
+                                   QImage(static_cast <uchar*> (imgRgb.data), mat.cols, mat.rows, mat.step, QImage::Format_RGB888)));
+        }
+
+    });
+
     connect(server, &CameraServer::resultPictureReady, this, [this](QImage& pic)
     {
-        for (auto& i : camerasGUI.keys())
+        if (optionsWindow->getShowResults())
         {
-            ZoomGraphicsView* view = camerasGUI[i].view;
-            static_cast <EditFrameQGraphicsScene*> (view->scene())
-                    ->setFrame(QPixmap::fromImage(pic));
+            for (auto& i : camerasGUI.keys())
+            {
+                ZoomGraphicsView* view = camerasGUI[i].view;
+                static_cast <EditFrameQGraphicsScene*> (view->scene())
+                        ->setFrame(QPixmap::fromImage(pic));
+            }
         }
     });
+
     QMap <qint32, QColor> plotMap;
     QVector <QCustomPlot*> plots;
     plotMap.insert(3850, QColor(255, 0, 0));
@@ -122,7 +148,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ApproximationVisualizer& av = ApproximationVisualizer::instance();
     av.initCamerasPlots(plotMap);
     av.setPlots(QVector <QCustomPlot*> {ui->errorsCustomPlot, ui->timesCustomPlot, ui->recCountCustomPlot, ui->calibDiffFirstCustomPlot,
-                ui->calibDiffSecondCustomPlot});
+                                        ui->calibDiffSecondCustomPlot});
     connect(&av, &ApproximationVisualizer::measureCountChanged, [this](qint32 count)
     {
         ui->plotHorizontalSlider->setRange(0, count);
@@ -140,19 +166,41 @@ MainWindow::MainWindow(QWidget *parent) :
         dir.mkdir("pictures");
         dir.setCurrent(QApplication::applicationDirPath());
     }
-    //av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_21_19_31.avi")
+    // av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_21_19_31.avi")
     //                   , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_21_19_31.avi"));
-   // av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_20_56_13.avi")
-   //                    , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_20_56_13.avi"));
+    //av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_20_56_13.avi")
+    //                   , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_20_56_13.avi"));
 
     // rtsp://admin:dRX77QDV@10.20.55.110:554/cam/realmonitor?channel=1&subtype=0
-    qputenv("GST_DEBUG", "4");
-    QString pipeLine = QString("rtspsrc location=rtsp://10.20.55.104:554/snl/live/1/1/Ux/sido=-QBP00YJW2yhJ ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
-    cv::VideoCapture cap(pipeLine.toStdString(), cv::CAP_GSTREAMER);
-    if (cap.isOpened())
-    {
-        qDebug() << "qq";
-    }
+    //    qputenv("GST_DEBUG", "4");
+    //    QString pipeLine = QString("rtspsrc location=rtsp://10.20.55.104:554/snl/live/1/1/Ux/sido=-QBP00YJW2yhJ ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
+    //    cv::VideoCapture cap(pipeLine.toStdString(), cv::CAP_GSTREAMER);
+    //    if (cap.isOpened())
+    //    {
+    //        qDebug() << "qq";
+    //    }
+    //    QElapsedTimer t;
+    //    t.start();
+    //    QThread::msleep(100);
+    //    qDebug() << t.elapsed();
+    //    QThread::msleep(100);
+    //    qDebug() << t.elapsed();
+//    QLinkedList <TestSt> ll;
+//    for (qint32 i = 0; i < 10; ++i)
+//    {
+//        ll.append(TestSt());
+//    }
+
+//    for (qint32 j = 0; j < 10; ++j)
+//    {
+//        auto it = ll.begin();
+//        while (it != ll.end())
+//        {
+//            --it->cnt;
+//            ++it;
+//        }
+//    }
+//    qDebug() << "qq";
 }
 
 MainWindow::~MainWindow()
@@ -187,8 +235,8 @@ void MainWindow::on_serverOptionsToolButton_clicked()
 
 void MainWindow::on_plotHorizontalSlider_sliderMoved(int position)
 {
-     ApproximationVisualizer& av = ApproximationVisualizer::instance();
-     av.showMeasure(position, 3850, 4510); // tmp
+    ApproximationVisualizer& av = ApproximationVisualizer::instance();
+    av.showMeasure(position, 3850, 4510); // tmp
 }
 
 void MainWindow::on_applyFirstCalibToolButton_clicked()

@@ -121,6 +121,8 @@ struct RecognizeParameters
     qint32 maxArea = -1;
     qint32 minArea = -1;
     double circularityCoeff = -1;
+    double dirX = -1;
+    double dirY = -1;
 };
 #pragma pack(pop)
 
@@ -209,6 +211,7 @@ struct CameraStatus
     cv::Mat lastFrame;
     QVector <RecognizeData> recData;
     QVector <RecognizeVideoData> recVideoData;
+    double firstTimeBall;
 
 };
 
@@ -321,6 +324,8 @@ public:
 
     void enableRecognitionAll(bool flag);
 
+    void runRepeatStream();
+
     void clearRecognizeData()
     {
         for (auto& i : cameras)
@@ -350,6 +355,8 @@ signals:
     void syncTimeGot();
 
     void resultPictureReady(QImage& image);
+
+    void autoCalibrateImageReady(cv::Mat mat, QTcpSocket* socket);
 
 private:
 
@@ -384,7 +391,7 @@ private:
 
     void fillEndOfMessage(QByteArray& array);
 
-    void receiveRtspVideo(qint32 port, qint32 frameCount, const QString& path, QTcpSocket* camera, const QVector<quint64> &times = QVector<quint64>(), QTime throwTime = QTime());
+    void receiveRtspVideo(qint32 port, qint32 frameCount, const QString& path, QTcpSocket* camera, const QVector<quint64> &times = QVector<quint64>());
 
     qint32 correctCameraTime(quint64 &intTime, QTcpSocket* camera);
 
@@ -393,19 +400,23 @@ private:
     QVector <char> avaliableCommands;
     QMutex streamMutex; // сделать mutex для каждой камеры?
     QMutex autoCalibrateMutex;
+    QMutex repeatMutex;
     bool calibrate = false;
     QAtomicInteger <qint64> syncTime = 0;
+    //QAtomicInteger <qint8> repeatCameraChosen = 0;
     bool autoCalibrate = false;
     bool updateAutoCalibrate = false;
     CompareFlag compareFlag;
     qint32 syncFrameEvery = 10;
     QTimer frameEveryTimer;
-
     qint32 waitFor;
+
+
     static constexpr const qint32 exposureToCameraIntTime = 10000;
     static constexpr const qint32 correctSyncTimeEvery = 100;
     static constexpr const qint32 machineTimeEpsilon = 100;
     static constexpr const qint32 syncTimeEpsilon = 5000;
+
 
 
 };

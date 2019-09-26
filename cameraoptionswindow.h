@@ -29,6 +29,10 @@ public:
 
     bool showExposureVerbose();
 
+    bool getShowResults();
+
+    bool getShowAutoCalibrate();
+
 private slots:
 
 
@@ -216,6 +220,16 @@ private slots:
     void on_compareReferenceRadioButton_toggled(bool checked);
 
     void on_compareNeibRadioButton_toggled(bool checked);
+
+    void on_xDirDoubleSpinBox_editingFinished();
+
+    void on_yDirDoubleSpinBox_editingFinished();
+
+    void on_turnOnScenarioCheckBox_toggled(bool checked);
+
+    void on_chooseMainHitROIPushButton_clicked();
+
+    void on_showMainHitPushButton_clicked();
 
 signals:
     void correlatedImageReady(cv::Mat img, QTcpSocket* socket);
