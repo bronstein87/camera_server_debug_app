@@ -1231,10 +1231,25 @@ void CameraOptionsWindow::on_turnOnScenarioCheckBox_toggled(bool checked)
 
 void CameraOptionsWindow::on_chooseMainHitROIPushButton_clicked()
 {
+    QRect rect = roiScene->getROI();
+    if (!rect.isEmpty())
+    {
+        ui->mainHitSearchRoiLabel->setStyleSheet("QLabel { background-color : green; }");
+        CameraOptions opt;
+        opt.recRois.mainHitSearchRect = Rect(rect.x(), rect.y(), rect.width(), rect.height());
+        cameraServer->sendParametersToCamera(opt, currentCamera);
+    }
 
+    roiScene->clearROI();
 }
 
 void CameraOptionsWindow::on_showMainHitPushButton_clicked()
 {
-
+    auto params = cameraServer->getLastCurrentParameters(currentCamera);
+    if (!params.recRois.mainHitSearchRect.empty())
+    {
+        roiScene->clearROI();
+        QRect r = QRect(params.recRois.mainHitSearchRect.x, params.recRois.mainHitSearchRect.y, params.recRois.mainHitSearchRect.width, params.recRois.mainHitSearchRect.height);
+        roiScene->drawROI(r);
+    }
 }

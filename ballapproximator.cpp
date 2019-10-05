@@ -250,11 +250,11 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     double yBegin = 16.55;
     bool strike = false;
     double widthInit = 0;
-//    const double closeZoneY = 0;
-//    const double farZoneY = 0.43;
-//    const double width = 0.215;
-//    const double minHeight = 0.473;
-//    const double maxHeight= 1.045;//1.075;
+    //    const double closeZoneY = 0;
+    //    const double farZoneY = 0.43;
+    //    const double width = 0.215;
+    //    const double minHeight = 0.473;
+    //    const double maxHeight= 1.045;//1.075;
     const double offset = 0.03;
 
     solveQuadratic(a[1] / 2, v[1], pos[1] - yBegin, t1, t2);
@@ -336,6 +336,67 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     BOKZMath::rotateOZ(-45.0 * BOKZMath::degreesToRad, mInit, mRot);
     multMatrixVector(mRot, pNoRot, rot);
     return strike;
+}
+
+HitParameters BallApproximator::calculateHitParameters()
+{
+    HitParameters hitParams;
+    double initSpeed[3] {xNonLinearParams[1], yNonLinearParams[1], zNonLinearParams[1]};
+    double lenghtFull = sqrt(initSpeed[0] * initSpeed[0] + initSpeed[1] * initSpeed[1] + initSpeed[2] * initSpeed[2]);
+    double lenghtXY = sqrt(initSpeed[0] * initSpeed[0] + initSpeed[1] * initSpeed[1]);
+    double dirFull[3];
+    for (qint32 i = 0; i < 3; ++i)
+    {
+        dirFull[i] = initSpeed[i] / lenghtFull;
+    }
+    double dirXY[3] {initSpeed[0] / lenghtXY, initSpeed[1] / lenghtXY, 0};
+    double cos = BOKZMath::calculateScalarProduct(dirFull[0], dirXY[0], dirFull[1], dirXY[1], dirFull[2], dirXY[2]);
+    hitParams.angle = abs(acos(cos) * radToDegrees);
+    hitParams.initSpeed = lenghtFull;
+    const double airResist = 0.338;
+    const double r = 7.3 / 100. / 2.;
+    const double area = 3.14 * r * r;
+    double dt = 0.05;
+    qint32 i = 0;
+    const qint32 maxCount = 1000;
+
+    double v[maxCount];
+    v[0] = lenghtFull;
+    double vx[maxCount];
+    vx[0] = lenghtXY;
+    double vy[maxCount];
+    vy[0] = zNonLinearParams[1];
+    double t[maxCount];
+    t[0] = 0;
+    double y[maxCount];
+    y[0] = zNonLinearParams[0];
+    double x[maxCount];
+    x[0] = 0;
+    double cs[maxCount];
+    cs[0] = lenghtXY / lenghtFull;
+    double acc[maxCount];
+    acc[0] = -1. / 2. * airResist * area * 1.23 * lenghtFull * lenghtFull / 0.145;
+    double sn[maxCount];
+    sn[0] = zNonLinearParams[1] / lenghtFull;
+    double yEnd = y[0];
+    while (yEnd > 0)
+    {
+        ++i;
+        t[i] = t[i - 1] + dt;
+        x[i] = x[i - 1] + vx[i - 1] * dt + (acc[i - 1] * cs[i-1]) * dt * dt / 2;
+        vx[i] = vx[i - 1] + (acc[i - 1] * cs[i - 1]) * dt;
+        y[i] = y[i - 1] + vy[i - 1] * dt + (acc[i - 1] * sn[i - 1] - 9.8) * dt * dt / 2;
+        vy[i] = vy[i - 1] + (acc[i - 1] * sn[i - 1] - 9.8) * dt;
+        v[i] = sqrt(vx[i] * vx[i] + vy[i] * vy[i]);
+        cs[i] = vx[i] / v[i];
+        sn[i] = vy[i] / v[i];
+        acc[i] = -1. / 2. * airResist * area * 1.23 * v[i] * v[i] / 0.145;
+        yEnd = y[i];
+    }
+    hitParams.distance = x[i - 2] - y[i - 2] * (x[i - 1] - x[i - 2]) / (y[i - 1] - y[i - 2]);
+    hitParams.distance *= metersToMiles;
+    hitParams.initSpeed *= metersToMiles;
+    return hitParams;
 }
 
 void BallApproximator::getPointAt(double time, double point[])

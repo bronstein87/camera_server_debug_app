@@ -111,7 +111,7 @@ public:
 
     bool appendRepeatFrame(qint32 camNum, cv::Mat frame, double time);
 
-    void setCorrCoef(qint32 camNum, double coef);
+    void setRepeatMainInfo(qint32 camNum, double coef, double sTime);
 
     void setRepeatCameraNumber(qint32 number);
 
@@ -121,7 +121,7 @@ public:
 
     bool isScenarioRun() {return repeatThreadRun;}
 
-    void clearRepeatCameraNumber() {scenarioData.repeats.clear();}
+    void clearRepeats();
 
     cv::Mat drawBallTracer(RepeatVisualizeData& repeatData, QPixmap& px, Calibration::ExteriorOr& EOFirstCamera,
                            Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
@@ -161,9 +161,14 @@ private:
     struct CorrTime
     {
         CorrTime() {}
-        CorrTime(double _corr, double _initTime) : corr(_corr), initTime(_initTime){}
+        CorrTime(double _corr, double _initTime, double _startTime) :
+            corr(_corr),
+            initTime(_initTime),
+            startTime(_startTime)
+        {}
         double corr;
         double initTime;
+        double startTime;
     };
 
     struct ScenarioData
@@ -243,6 +248,8 @@ private:
     constexpr const static qint32 ballCount = 21;
     constexpr const static double ballSize = 7.3;
     constexpr const static double coeff = 25;
+    constexpr const static qint32 scenarioWidth = 1280;
+    constexpr const static qint32 scenarioHeight = 720;
 
 
 

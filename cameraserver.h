@@ -42,7 +42,8 @@ enum Camera57Protocol
     RequestCameraFrame = 0x46,
     ReadyToGetStream = 0x52,
     IsServerPrepareToGetStream = 0x51,
-    GetBaseBallCoordinates = 0x44,
+    GetThrowCoordinates = 0x44,
+    GetHitCoordinates = 0x45,
     GetTestDataFromClient = 0x54,
     StartStream = 0x53,
     StopStream = 0x55,
@@ -54,15 +55,6 @@ enum Camera57Protocol
     EndOfMessageSign = 0x23
 };
 
-#pragma pack(push, 1)
-struct MainROIs
-{
-    cv::Rect mainSearchRect;
-    cv::Rect trackFirstRect;
-    cv::Rect trackSecondRect;
-    cv::Rect wbRect;
-};
-#pragma pack(pop)
 
 
 enum LightningParameter
@@ -86,6 +78,7 @@ struct RecROIs
     cv::Rect mainSearchRect;
     cv::Rect trackFirstRect;
     cv::Rect trackSecondRect;
+    cv::Rect mainHitSearchRect;
 };
 #pragma pack(pop)
 
@@ -211,6 +204,7 @@ struct CameraStatus
     cv::Mat lastFrame;
     QVector <RecognizeData> recData;
     QVector <RecognizeVideoData> recVideoData;
+    QVector <RecognizeData> hitData;
     double firstTimeBall;
 
 };
@@ -289,6 +283,8 @@ public:
     void saveCameraSettings(QTcpSocket* camera);
 
     void checkRecognizeResults();
+
+    void checkHitResults();
 
     cv::Mat getFrameFromStream(QTcpSocket* socket);
 

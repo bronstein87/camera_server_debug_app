@@ -21,6 +21,13 @@ constexpr const double maxHeight= 1.045;
 
 using namespace BOKZMath;
 using namespace StrikeZone;
+struct HitParameters
+{
+    double angle;
+    double initSpeed;
+    double distance;
+};
+
 class BallApproximator : public QObject
 {
     Q_OBJECT
@@ -46,6 +53,8 @@ public:
     bool calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
                                     double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
                                     double& xBegin, double rot[], double &W, double& tFarZone);
+
+    HitParameters calculateHitParameters();
 
     void getPointAt(double time, double point[3]);
 

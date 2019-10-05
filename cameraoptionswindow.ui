@@ -1281,7 +1281,7 @@
        <item row="4" column="0">
         <layout class="QHBoxLayout" name="horizontalLayout_19">
          <item>
-          <widget class="QLabel" name="secondROILabel_2">
+          <widget class="QLabel" name="mainHitSearchRoiLabel">
            <property name="text">
             <string>Область интереса - первичный поиск (удар)</string>
            </property>

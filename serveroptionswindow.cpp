@@ -23,7 +23,6 @@ ServerOptionsWindow::ServerOptionsWindow(Synchronizer* snc, QWidget *parent) :
                 .arg(i.portName())
                 .arg(i.productIdentifier());
         ui->mainMonitorTextEdit->append(str);
-
     }
     loadSettings();
 }

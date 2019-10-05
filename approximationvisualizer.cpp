@@ -7,13 +7,15 @@ ApproximationVisualizer::ApproximationVisualizer(QObject *parent) : QObject(pare
     //  batterSearchZones.insert(3850, cv::Rect(930, 866, 1250 - 930, 1050 - 866)); //tmp
     // batterSearchZones.insert(4510, cv::Rect(640, 888, 1035 - 640, 1045 - 888));
     batterSearchZones.insert(3850, cv::Rect(908, 644, 1244 - 908, 1035 - 644)); //tmp
-    batterSearchZones.insert(4510, cv::Rect(671, 647, 966 - 671, 1044 - 666));
+    batterSearchZones.insert(4510, cv::Rect(671, 647, 966 - 671, 1044 - 647));
     scenarioData.scaleRects.insert(3850, cv::Rect(570, 230, 1745 - 570, 1032 - 230));
     scenarioData.scaleRects.insert(4510, cv::Rect(179, 188, 1383 - 179, 1040 - 188));
     auto img = shortPixmap.toImage();
     Mat m(img.height(), img.width(), CV_8UC4, (void*)img.constBits());
     cvtColor(m, m, CV_RGBA2RGB);
-    scenarioData.initPicture = m;
+    Mat scaled;
+    cv::resize(m, scaled, Size(scenarioWidth, scenarioHeight));
+    scenarioData.initPicture = scaled;
 }
 
 QVector<QImage> ApproximationVisualizer::createApproxVisualisation(BallApproximator& approx, QString info)
@@ -523,7 +525,7 @@ QImage ApproximationVisualizer::makeFullPicture(BallApproximator &approx)
 
     QPainter painter(&image);
     scenePicture->render(&painter);
-
+    //image = image.scaled(scenarioWidth, scenarioHeight);
     return image;
 }
 
@@ -779,7 +781,8 @@ QImage ApproximationVisualizer::makeShortPicture(BallApproximator &approx, QStri
 
     QPainter painter(&image);
     scenePicture->render(&painter);
-    return image;
+    QImage scaled = image.scaled(scenarioWidth, scenarioHeight);
+    return scaled;
 }
 
 void ApproximationVisualizer::readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
@@ -977,7 +980,7 @@ void ApproximationVisualizer::runRepeatStreamInternal()
     repeatThreadRun = 1;
     if (!outWindow.isOpened())
     {
-        Q_ASSERT(outWindow.open("appsrc ! videoconvert ! d3dvideosink sync=false async=false", CV_CAP_GSTREAMER, 30, Size(1920, 1080)));
+        Q_ASSERT(outWindow.open("appsrc ! videoconvert ! d3dvideosink sync=false async=false", CV_CAP_GSTREAMER, 30, Size(scenarioWidth, scenarioHeight)));
     }
     RepeatVisualizeData repeatData;
     bool newRepeat = false;
@@ -1014,7 +1017,6 @@ void ApproximationVisualizer::runRepeatStreamInternal()
             if (!newRepeat)
             {
                 qDebug() << "NEW REPEAT" << scenarioData.repeats.size();
-
                 repeatData = RepeatVisualizeData();
                 newRepeat = true;
             }
@@ -1030,14 +1032,14 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                 }
                 else
                 {
-                    double timeFirst = scenarioData.repeats.first().second.first().second;
-                    double timeSecond = scenarioData.repeats.last().second.first().second;
+                    double timeFirst = scenarioData.repeats.first().first.startTime;
+                    double timeSecond = scenarioData.repeats.last().first.startTime;
                     if (scenarioData.approx.isNull()
                             || abs(timeFirst - timeSecond) > 1)
                     {
-                        qDebug() << "INCORRECT REPEATS";
+                        qDebug() << "INCORRECT REPEATS" << timeFirst << timeSecond;
                         scenarioData.repeats.clear();
-                        setCurrentRepeatState(ShowInit);
+                        currentRepeatState = ShowInit;
                         continue;
                     }
                     qDebug() << "RESOLVE CONFLICT" << corrFirst << corrSecond << scenarioData.repeats.keys().first() << scenarioData.repeats.keys().last();
@@ -1062,7 +1064,7 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                     auto& v = scenarioData.repeats.first().second;
                     QPair <cv::Mat, double> pair = v.first();
                     Mat raw;
-                    pair.first.copyTo(raw);
+                    pair.first.copyTo(raw); // вот тут сделать просто raw = pair.first
                     v.removeFirst();
                     cvtColor(raw, raw, CV_BGR2RGB);
                     QScopedPointer <QElapsedTimer> t (new QElapsedTimer());
@@ -1073,12 +1075,8 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                                            scenarioData.repeats.first().first.initTime);
                     Mat preScaled, scaled;
                     m(scenarioData.scaleRects[scenarioData.repeats.keys().first()]).copyTo(preScaled);
-                    //                    qDebug() << "HANDLE" << needToWait << elapsed
-                    //                             << scenarioData.repeats.first().first.initTime
-                    //                             << pair.second - scenarioData.repeats.first().first.initTime
-                    //                             << pair.second << handledFrames;
                     locker.unlock();
-                    cv::resize(preScaled, scaled, Size(1920, 1080));
+                    cv::resize(preScaled, scaled, Size(scenarioWidth, scenarioHeight));
                     qint64 elapsed = t->elapsed();
                     outWindow.write(scaled);
                     qint32 needToWait = (1000. / 30.) - elapsed;
@@ -1370,7 +1368,7 @@ void ApproximationVisualizer::drawTracerDebug(const QString &fVideo, const QStri
     QVector <QPolygonF> polygons;
 
     //cv::VideoWriter outWindow("appsrc ! videoconvert ! d3dvideosink sync=false async=false", CV_CAP_GSTREAMER, 30, Size(1920, 1080));
-    outWindow.open("appsrc ! videoconvert ! d3dvideosink sync=false async=false", CV_CAP_GSTREAMER, 30, Size(1920, 1080));
+    outWindow.open("appsrc ! videoconvert ! d3dvideosink sync=false async=false", CV_CAP_GSTREAMER, 30, Size(scenarioWidth, scenarioHeight));
     //cv::VideoWriter outWindow("appsrc ! videoconvert ! glimagesink sync=false async=false", CV_CAP_GSTREAMER, 30, Size(1920, 1080));
     if (outWindow.isOpened())
     {
@@ -1535,6 +1533,7 @@ bool ApproximationVisualizer::appendRepeatFrame(qint32 camNum, Mat frame, double
         scenarioData.repeats[camNum].second.append(qMakePair(frame, time));
     }
     else
+
     {
         qDebug() << "REMOVE" << camNum;
         return false;
@@ -1544,7 +1543,9 @@ bool ApproximationVisualizer::appendRepeatFrame(qint32 camNum, Mat frame, double
     //scenarioData.repeat.append(qMakePair(frame, time));
 }
 
-void ApproximationVisualizer::setCorrCoef(qint32 camNum, double coef)
+
+
+void ApproximationVisualizer::setRepeatMainInfo(qint32 camNum, double coef, double sTime)
 {
     QMutexLocker lock(&scenarioMutex);
     if (scenarioData.repeats.contains(camNum))
@@ -1552,7 +1553,7 @@ void ApproximationVisualizer::setCorrCoef(qint32 camNum, double coef)
         scenarioData.repeats.remove(camNum);
     }
     qDebug() << "SET CORR COEFF" << camNum << coef;
-    scenarioData.repeats.insert(camNum, qMakePair(CorrTime(coef, -1), QLinkedList <QPair <cv::Mat, double>>()));
+    scenarioData.repeats.insert(camNum, qMakePair(CorrTime(coef, -1, sTime), QLinkedList <QPair <cv::Mat, double>>()));
 }
 
 void ApproximationVisualizer::setRepeatCameraNumber(qint32 number)
@@ -1571,6 +1572,12 @@ void ApproximationVisualizer::setRepeatInitTime(qint32 num, double time)
     {
         Q_ASSERT(false);
     }
+}
+
+void ApproximationVisualizer::clearRepeats()
+{
+    QMutexLocker lock(&scenarioMutex);
+    scenarioData.repeats.clear();
 }
 
 qint32 ApproximationVisualizer::correctCoordinates(double coord)
