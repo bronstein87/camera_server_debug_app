@@ -203,7 +203,7 @@ MainWindow::MainWindow(QWidget *parent) :
 //    qDebug() << "qq";
 //    BallApproximator approx;
 //    server->testApproximation("D:/REC_CAMERAS/actual_server/"
-//                              "build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_01_10_2019/test.txt", approx);
+//                              "build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_01_10_2019/test2.txt", approx);
   // server->testApproximation("D:/REC_CAMERAS/actual_server/ideo_16_38_50", approx);
 //    server->testApproximation("D:/REC_CAMERAS/actual_server/ideo_19_20_29", approx);
 }

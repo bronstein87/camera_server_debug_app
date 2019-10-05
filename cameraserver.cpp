@@ -272,15 +272,10 @@ void CameraServer::testApproximation(const QString &filePath, BallApproximator& 
         Calibration::GetRayAndPoint(EOFirstCamera, cameraFirst, XYpix_left, rp);
         qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points1[i][2].toDouble()/ divideTime, 'g', 10);
         double time = points1[i][2].toDouble();
-
-        firstVecs.append(rp.Vect);
         if (points1[i][3].toInt())
         {
             firstTime.append((double)time);
-        }
-        else
-        {
-            firstTime.append(-(double)time);
+            firstVecs.append(rp.Vect);
         }
 
     }
@@ -298,15 +293,12 @@ void CameraServer::testApproximation(const QString &filePath, BallApproximator& 
         Calibration::GetRayAndPoint(EOSecondCamera, cameraSecond, XYpix_right, rp);
         qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points2[i][2].toDouble()/ divideTime, 'g', 10);
         double time = points2[i][2].toDouble();
-        secondVecs.append(rp.Vect);
         if (points2[i][3].toInt())
         {
             secondTime.append((double)time);
+            secondVecs.append(rp.Vect);
         }
-        else
-        {
-            secondTime.append(-(double)time);
-        }
+
 
         //        else
         //        {
@@ -319,76 +311,91 @@ void CameraServer::testApproximation(const QString &filePath, BallApproximator& 
     //    std::reverse(secondVecs.begin(), secondVecs.end());
     //    std::reverse(firstTime.begin(), firstTime.end());
     //    std::reverse(secondTime.begin(), secondTime.end());
-    bool repeat = true;
-    while (repeat)
+
+    approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+    approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                  .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                  .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
+
+    double coef = 0.04;
+    bool repeat = false;
+    qint32 removeEndErrorsCount = 2;
+    for (qint32 i = 0; i < removeEndErrorsCount; ++i)
     {
-        approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
-        approx.calculateApproximation(QString("games_%1/results/result_%2.txt")
-                                      .arg(QDate::currentDate().toString("dd_MM_yyyy"))
-                                      .arg(QTime::currentTime().toString("hh_mm_ss")), true);
         repeat = false;
         auto v1 = approx.getFirstErrors();
+        if (v1.size() > 0 && v1.first() > coef)
+        {
+            firstTime.removeFirst();
+            firstVecs.removeFirst();
+            v1.removeFirst();
+            repeat = true;
+        }
+        if (v1.size() > 0  && v1.last() > coef)
+        {
+            firstTime.removeLast();
+            firstVecs.removeLast();
+            v1.removeLast();
+            repeat = true;
+        }
         auto v2 = approx.getSecondErrors();
-        if (v1.size() < 5 || v2.size() < 5)
+        if ( v2.size() > 0  &&  v2.first() > coef)
         {
-            break;
+            secondTime.removeFirst();
+            secondVecs.removeFirst();
+            v2.removeFirst();
+            repeat = true;
         }
-        double coef = 0.010;
-        if (v1.first() > coef)
+        if ( v2.size() > 0 && v2.last() > coef)
         {
-            for (qint32 i = 0; i < firstTime.size(); ++i)
-            {
-                if (firstTime[i] > 0)
-                {
-                    firstTime.remove(i);
-                    firstVecs.remove(i);
-                    repeat = true;
-                    break;
-                }
-            }
+            secondTime.removeLast();
+            secondVecs.removeLast();
+            v2.removeLast();
+            repeat = true;
         }
-        if (v1.last() > coef)
+        if (repeat)
         {
-            for (qint32 i = firstTime.size() - 1; i > 0 ; --i)
-            {
-                if (firstTime[i] > 0)
-                {
-                    firstTime.remove(i);
-                    firstVecs.remove(i);
-                    repeat = true;
-                    break;
-                }
-            }
-        }
-
-
-        if (v2.first() > coef)
-        {
-            for (qint32 i = 0; i < secondTime.size(); ++i)
-            {
-                if (secondTime[i] > 0)
-                {
-                    secondTime.remove(i);
-                    secondVecs.remove(i);
-                    repeat = true;
-                    break;
-                }
-            }
-        }
-        if (v2.last() > coef)
-        {
-            for (qint32 i = secondTime.size() - 1; i > 0 ; --i)
-            {
-                if (secondTime[i] > 0)
-                {
-                    secondTime.remove(i);
-                    secondVecs.remove(i);
-                    repeat = true;
-                    break;
-                }
-            }
+            approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+            approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                          .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                          .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
         }
     }
+    repeat = false;
+    auto v1 = approx.getFirstErrors();
+    for (qint32 i = 0; i < v1.size(); ++i)
+    {
+        if (v1[i] > coef)
+        {
+            firstTime.remove(i);
+            firstVecs.remove(i);
+            v1.remove(i);
+            repeat = true;
+            --i;
+        }
+    }
+
+    auto v2 = approx.getSecondErrors();
+    for (qint32 i = 0; i < v2.size(); ++i)
+    {
+        if (v2[i] > coef)
+        {
+            secondTime.remove(i);
+            secondVecs.remove(i);
+            v1.remove(i);
+            repeat = true;
+            --i;
+        }
+    }
+    if (repeat)
+    {
+        approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
+        approx.calculateApproximation(QString("games_%1/results/result%2.txt")
+                                      .arg(QDate::currentDate().toString("dd_MM_yyyy"))
+                                      .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
+
+    }
+
     HitParameters hParams = approx.calculateHitParameters();
     double pos[3], v[3], a[3];
     approx.rotateMovementParameters(pos, v ,a);
@@ -576,32 +583,26 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
     CalibrationAdjustHelper::readCurrentCalibrationParameters(sNum, "calibrate", EOSecondCamera, cameraSecond, true);
     lock.unlock();
 
-    QVector <Calibration::Position> secondVecs;
-    QVector <double> secondTime;
     QVector <Calibration::Position> firstVecs;
     QVector <double> firstTime;
+    QVector <Calibration::Position> secondVecs;
+    QVector <double> secondTime;
+
 
     Calibration::RayAndPoint rp;
     Calibration::Position2D XYpix_left;
 
-    //const double divideTime = 10000000.0;
     for (qint32 i = 0; i < size1; ++i)
     {
         XYpix_left.X = points1[i][0];
         XYpix_left.Y = points1[i][1];
         Calibration::GetRayAndPoint(EOFirstCamera, cameraFirst, XYpix_left, rp);
-        //qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points1[i][2].toDouble()/ divideTime, 'g', 10);
         double time = points1[i][2];
-        firstVecs.append(rp.Vect);
         if (qFuzzyCompare(points1[i][3], 1))
         {
+            firstVecs.append(rp.Vect);
             firstTime.append(time);
         }
-        else
-        {
-            firstTime.append(-time);
-        }
-
     }
 
     Calibration::Position2D XYpix_right;
@@ -610,31 +611,27 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         XYpix_right.X = points2[i][0];
         XYpix_right.Y = points2[i][1];
         Calibration::GetRayAndPoint(EOSecondCamera, cameraSecond, XYpix_right, rp);
-        //qDebug() << rp.Vect.X << rp.Vect.Y  << rp.Vect.Z << QString::number(points2[i][2].toDouble(), 'g', 10);
         double time = points2[i][2];
-        secondVecs.append(rp.Vect);
         if (qFuzzyCompare(points2[i][3], 1))
         {
+            secondVecs.append(rp.Vect);
             secondTime.append(time);
-        }
-        else
-        {
-            secondTime.append(-time);
         }
     }
 
     approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
     approx.calculateApproximation(QString("games_%1/results/result%2.txt")
                                   .arg(QDate::currentDate().toString("dd_MM_yyyy"))
-                                  .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+                                  .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
 
-    auto v1 = approx.getFirstErrors();
+
     double coef = 0.04;
     bool repeat = false;
     qint32 removeEndErrorsCount = 2;
     for (qint32 i = 0; i < removeEndErrorsCount; ++i)
     {
         repeat = false;
+        auto v1 = approx.getFirstErrors();
         if (v1.size() > 0 && v1.first() > coef)
         {
             firstTime.removeFirst();
@@ -669,39 +666,36 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
             approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
             approx.calculateApproximation(QString("games_%1/results/result%2.txt")
                                           .arg(QDate::currentDate().toString("dd_MM_yyyy"))
-                                          .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+                                          .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
         }
     }
     repeat = false;
-    while (v1.size() > 0 && v1.first() > coef)
+    auto v1 = approx.getFirstErrors();
+    for (qint32 i = 0; i < v1.size(); ++i)
     {
-        firstTime.removeFirst();
-        firstVecs.removeFirst();
-        v1.removeFirst();
-        repeat = true;
+        if (v1[i] > coef)
+        {
+            firstTime.remove(i);
+            firstVecs.remove(i);
+            v1.remove(i);
+            repeat = true;
+            --i;
+        }
     }
-    while (v1.size() > 0  && v1.last() > coef)
-    {
-        firstTime.removeLast();
-        firstVecs.removeLast();
-        v1.removeLast();
-        repeat = true;
-    }
+
     auto v2 = approx.getSecondErrors();
-    while ( v2.size() > 0  &&  v2.first() > coef)
+    for (qint32 i = 0; i < v2.size(); ++i)
     {
-        secondTime.removeFirst();
-        secondVecs.removeFirst();
-        v2.removeFirst();
-        repeat = true;
+        if (v2[i] > coef)
+        {
+            secondTime.remove(i);
+            secondVecs.remove(i);
+            v1.remove(i);
+            repeat = true;
+            --i;
+        }
     }
-    while ( v2.size() > 0 && v2.last() > coef)
-    {
-        secondTime.removeLast();
-        secondVecs.removeLast();
-        v2.removeLast();
-        repeat = true;
-    }
+
     if  (v1.size() <= 4 || v2.size() <= 4)
     {
         for (auto& i : cameras.keys())
@@ -715,7 +709,7 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
         approx.calculateApproximation(QString("games_%1/results/result%2.txt")
                                       .arg(QDate::currentDate().toString("dd_MM_yyyy"))
-                                      .arg(QTime::currentTime().toString("hh_mm_ss")), true);
+                                      .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
 
     }
 
@@ -1398,28 +1392,42 @@ void CameraServer::checkRecognizeResults()
                 if (handleApproximation(*approx, cameras.first().curParams.portSendStream, resFirst[indexf].data, resFirst[indexf].size,
                                         cameras.last().curParams.portSendStream, resSecond[indexs].data, resSecond[indexs].size))
                 {
-                    qint32 recCountFirst = resFirst[indexf].size;
+                    QVector <double> timesFirst;
+                    qint32 recCountFirst = 0;
+                    bool fillTimeFirst = false;
                     for (qint32 i = 0; i < resFirst[indexf].size; ++i)
                     {
                         if (qFuzzyCompare(resFirst[indexf].data[i][3], 1))
                         {
-                            cameras[cameras.keys().first()].firstTimeBall = resFirst[indexf].data[i][2];
-                            break;
+                            ++recCountFirst;
+                            if (!fillTimeFirst)
+                            {
+                                cameras[cameras.keys().first()].firstTimeBall = resFirst[indexf].data[i][2];
+                                fillTimeFirst = true;
+                            }
+
                         }
+                        timesFirst.append(resFirst[indexf].data[i][2]);
                     }
-                    qint32 recCountSecond  = resSecond[indexs].size;
+                    QVector <double> timesSecond;
+                    qint32 recCountSecond  = 0;
+                    bool fillTimeSecond = false;
                     for (qint32 i = 0; i < resSecond[indexs].size; ++i)
                     {
                         if (qFuzzyCompare(resSecond[indexs].data[i][3], 1))
                         {
-                            cameras[cameras.keys().last()].firstTimeBall = resSecond[indexs].data[i][2];
-                            break;
+                            ++recCountSecond;
+                            if (!fillTimeSecond)
+                            {
+                                cameras[cameras.keys().last()].firstTimeBall = resSecond[indexs].data[i][2];
+                                fillTimeSecond = true;
+                            }
+
                         }
+                        timesSecond.append(resSecond[indexs].data[i][2]);
                     }
 
-                    //                    QString info = QString ("%1 %2 %3 %4")
-                    //                            .arg(cameras.first().curParams.portSendStream).arg(recCountFirst)
-                    //                            .arg(cameras.last().curParams.portSendStream).arg(recCountSecond);
+
                     QVector <QImage> result = visualizer.createApproxVisualisation(*approx, QString());
                     double vBeginMiles = visualizer.vBegin * metersToMiles;
                     double vEndMiles = visualizer.vEnd * metersToMiles;
@@ -1491,8 +1499,12 @@ void CameraServer::checkRecognizeResults()
 
                     QDateTime dt = QDateTime::currentDateTime();
                     dt.setTime(resFirst[indexf].startTime);
-                    visualizer.plotCamera(*approx, cameras.first().curParams.portSendStream, cameras.last().curParams.portSendStream,
-                                          recCountFirst, recCountSecond, dt);
+                    PlotCameraData d;
+                    d.timeFirst = timesFirst;
+                    d.timeSecond = timesSecond;
+                    d.firstMesCount = recCountFirst;
+                    d.secondMesCount = recCountSecond;
+                    visualizer.plotCamera(*approx, cameras.first().curParams.portSendStream, cameras.last().curParams.portSendStream, d, dt);
                 }
                 else
                 {

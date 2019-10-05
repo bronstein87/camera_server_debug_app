@@ -84,19 +84,15 @@ void ApproximationVisualizer::clear(bool all)
 
 }
 
-void ApproximationVisualizer::plotCamera(BallApproximator& approx, qint32 firstNumber, qint32 secondNumber, qint32 recCountF, qint32 recCountS, QDateTime dt)
+void ApproximationVisualizer::plotCamera(BallApproximator& approx, qint32 firstNumber, qint32 secondNumber, PlotCameraData& plotData, QDateTime dt)
 {
-    QVector <double> timeFirst = approx.getFirstTime();
-    QVector <double> timeSecond = approx.getSecondTime();
-    QVector <double> timeFirstInit = approx.getFirstTimeInit();
-    QVector <double> timeSecondInit = approx.getSecondTimeInit();
+    QVector <double> timeFirst = plotData.timeFirst;
+    QVector <double> timeSecond = plotData.timeSecond;
     QVector <double> errorsFirst = approx.getFirstErrors();
     QVector <double> errorsSecond = approx.getSecondErrors();
     QVector <double> timeFirstDelta;
     QVector <double> timeSecondDelta;
 
-    fillSkippedTime(errorsFirst, timeFirstInit, timeFirst);
-    fillSkippedTime(errorsSecond, timeSecondInit, timeSecond);
 
     for (qint32 i = 1; i < errorsFirst.size(); ++i)
     {
@@ -113,12 +109,12 @@ void ApproximationVisualizer::plotCamera(BallApproximator& approx, qint32 firstN
     m.error = errorsFirst;
     m.time = dt;
     m.timeDelta = timeFirstDelta;
-    m.objCount = recCountF;
+    m.objCount = plotData.firstMesCount;
     measuresMap[firstNumber].append(m);
 
     m.error = errorsSecond;
     m.timeDelta = timeSecondDelta;
-    m.objCount = recCountS;
+    m.objCount = plotData.secondMesCount;
     measuresMap[secondNumber].append(m);
 
     qint32 index = measuresMap[firstNumber].size() - 1;
@@ -1125,7 +1121,7 @@ cv::Mat ApproximationVisualizer::drawBallTracer(RepeatVisualizeData& repeatData,
     if (abs(videoTime - initTime) < delta && !repeatData.startPointFound)
     {
         repeatData.startPointFound = true;
-        approx.getPointAt(videoTime - delta, point);
+        approx.getPointAt(videoTime, point);
         p.X = point[0];
         p.Y = point[1];
         p.Z = point[2];

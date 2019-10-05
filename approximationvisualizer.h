@@ -16,7 +16,13 @@
 
 
 
-
+struct PlotCameraData
+{
+    QVector <double> timeFirst;
+    QVector <double> timeSecond;
+    qint32 firstMesCount;
+    qint32 secondMesCount;
+};
 
 class ApproximationVisualizer : public QObject
 {
@@ -63,7 +69,7 @@ public:
 
     QVector <QImage> createApproxVisualisation(BallApproximator& approx, QString info);
 
-    void plotCamera(BallApproximator& approx, qint32 firstNumber, qint32 secondNumber, qint32 recCountF, qint32 recCountS, QDateTime dt);
+    void plotCamera(BallApproximator& approx, qint32 firstNumber, qint32 secondNumber, PlotCameraData& plotData, QDateTime dt);
 
     void plotCalibrate(QMap <qint32, Calibration::ExteriorOr>& map, CompareFlag compareFlag);
 
