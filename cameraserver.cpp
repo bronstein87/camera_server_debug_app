@@ -382,7 +382,7 @@ void CameraServer::testApproximation(const QString &filePath, BallApproximator& 
         {
             secondTime.remove(i);
             secondVecs.remove(i);
-            v1.remove(i);
+            v2.remove(i);
             repeat = true;
             --i;
         }
