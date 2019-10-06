@@ -628,13 +628,13 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
                                   .arg(QDate::currentDate().toString("dd_MM_yyyy"))
                                   .arg(QTime::currentTime().toString("hh_mm_ss")), true);
 
-    auto v1 = approx.getFirstErrors();
     double coef = 0.04;
     bool repeat = false;
     qint32 removeEndErrorsCount = 2;
     for (qint32 i = 0; i < removeEndErrorsCount; ++i)
     {
         repeat = false;
+        auto v1 = approx.getFirstErrors();
         if (v1.size() > 0 && v1.first() > coef)
         {
             firstTime.removeFirst();
@@ -673,6 +673,7 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         }
     }
     repeat = false;
+    auto v1 = approx.getSecondErrors();
     while (v1.size() > 0 && v1.first() > coef)
     {
         firstTime.removeFirst();
