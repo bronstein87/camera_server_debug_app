@@ -690,7 +690,7 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         {
             secondTime.remove(i);
             secondVecs.remove(i);
-            v1.remove(i);
+            v2.remove(i);
             repeat = true;
             --i;
         }
