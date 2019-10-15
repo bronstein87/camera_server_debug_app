@@ -394,7 +394,6 @@ HitParameters BallApproximator::calculateHitParameters()
         yEnd = y[i];
     }
     hitParams.distance = x[i - 2] - y[i - 2] * (x[i - 1] - x[i - 2]) / (y[i - 1] - y[i - 2]);
-    hitParams.distance *= metersToMiles;
     hitParams.initSpeed *= metersToMiles;
     return hitParams;
 }

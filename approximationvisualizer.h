@@ -101,6 +101,10 @@ public:
 
     QImage makeShortPicture(BallApproximator& approx, QString info);
 
+    QImage addHitInfo(cv::Mat img, HitParameters &hParams);
+
+    cv::Mat getResultPicture() {return scenarioData.resultPicture;}
+
     void drawTracerDebug(const QString& fVideo, const QString& sVideo);
 
     void clearCalibGraphs();
@@ -108,6 +112,8 @@ public:
     double calculateBatterPositionCorr(qint32 number, cv::Mat img);
 
     QMap <qint32, QVector <CalibData>> getCalibMap() {return calibMap;}
+
+    void setResultPicture(cv::Mat m);
 
     //void resetRepeatVisualise() {repeatData = RepeatVisualizeData();}
 
@@ -119,6 +125,8 @@ public:
 
     void setRepeatMainInfo(qint32 camNum, double coef, double sTime);
 
+    void setRepeatFrameCount(qint32 camNum, qint32 count);
+
     void setRepeatCameraNumber(qint32 number);
 
     void setRepeatInitTime(qint32 num, double time);
@@ -128,6 +136,8 @@ public:
     bool isScenarioRun() {return repeatThreadRun;}
 
     void clearRepeats();
+
+
 
     cv::Mat drawBallTracer(RepeatVisualizeData& repeatData, QPixmap& px, Calibration::ExteriorOr& EOFirstCamera,
                            Calibration::SpacecraftPlatform::CAMERA::CameraParams& cameraFirst,
@@ -175,6 +185,7 @@ private:
         double corr;
         double initTime;
         double startTime;
+        qint32 frameCount;
     };
 
     struct ScenarioData

@@ -18,5 +18,8 @@
         <file>resources/zone_res.png</file>
         <file>resources/cross2.png</file>
         <file>resources/picture.png</file>
+        <file>resources/batting.png</file>
+        <file>resources/meters.png</file>
+        <file>resources/pitching.png</file>
     </qresource>
 </RCC>

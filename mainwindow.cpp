@@ -201,11 +201,21 @@ MainWindow::MainWindow(QWidget *parent) :
 //        }
 //    }
 //    qDebug() << "qq";
-//    BallApproximator approx;
-//    server->testApproximation("D:/REC_CAMERAS/actual_server/"
-//                              "build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_01_10_2019/test2.txt", approx);
+   // BallApproximator approx;
+   // server->testApproximation("D:/REC_CAMERAS/actual_server/"
+    //                         "build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_01_10_2019/test2.txt", approx);
   // server->testApproximation("D:/REC_CAMERAS/actual_server/ideo_16_38_50", approx);
 //    server->testApproximation("D:/REC_CAMERAS/actual_server/ideo_19_20_29", approx);
+//    QImage img = av.makeShortPicture(approx, QString());
+//    auto m = Mat(img.height(), img.width(), CV_8UC4, (void*)img.constBits());
+//   cvtColor(m, m, CV_RGBA2BGR); // в отдельную функцию
+//    HitParameters p;
+//    p.angle = 10;
+//    p.initSpeed = 80;
+//    p.distance = 100;
+//    auto img2 = av.addHitInfo(m, p);
+//    img2.save("D:/REC_CAMERAS/test.jpg");
+
 }
 
 MainWindow::~MainWindow()

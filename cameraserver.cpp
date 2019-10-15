@@ -145,37 +145,42 @@ void CameraServer::syncVideo(const QString& dir, bool compress)
 void CameraServer::checkSync()
 {
     waitFor = 0;
-    if (cameras.size() == 2)
+    if (cameras.size() >= 2)
     {
         QSharedPointer <QMetaObject::Connection> conn (new QMetaObject::Connection); // save this conn in class
         *conn = connect(this, &CameraServer::syncTimeGot, this, [this, conn]()
         {
             ++waitFor;
-            if (waitFor == 2)
+            if (waitFor == cameras.size())
             {
-                qint32 delta = abs(cameras.first().machineSyncTime.msecsTo(cameras.last().machineSyncTime));
-                //                qDebug() <<  "GOT SYNC TIME" << cameras.first().syncTime << cameras.last().syncTime
-                //                          << (qint64)cameras.first().syncTime - (qint64)cameras.last().syncTime << cameras.first().machineSyncTime << cameras.last().machineSyncTime
-                //                          << delta;
-                if (delta < machineTimeEpsilon)
+                auto it = ++cameras.begin();
+                bool  error = false;
+                while (it != cameras.end())
                 {
-                    syncTime = (qint64)cameras.first().syncTime - (qint64)cameras.last().syncTime;
-                    calibrate = true;
-                    for (auto& i : cameras.keys())
+                    qint32 delta = abs(cameras.first().machineSyncTime.msecsTo(it->machineSyncTime));
+                    if (delta < machineTimeEpsilon)
                     {
-                        emit readyMessageFromServer(QString("Время успешно синхронизировано, дельта = %1 мс")
-                                                    .arg(delta), i);
+                        syncTime = (qint64)cameras.first().syncTime - (qint64)it->syncTime;
+                        calibrate = true;
+                        emit readyMessageFromServer(QString("Время успешно синхронизировано, дельта = %1")
+                                                    .arg(delta), it.key());
                     }
-                }
-                else
-                {
-                    for (auto& i : cameras.keys())
+                    else
                     {
+                        error = true;
                         emit readyMessageFromServer("Cлишком большая разница в системном времени камер. "
-                                                    "Время не откалибровано.", i);
+                                                    "Время не откалибровано.", it.key());
                     }
-
+                    ++it;
                 }
+                if (error)
+                {
+                    for (auto& i : cameras.keys())
+                    {
+                        emit readyMessageFromServer("Одна или несколько камер не были синхронизированы", i);
+                    }
+                }
+
 
                 waitFor = 0;
                 disconnect(*conn);
@@ -619,15 +624,19 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         }
     }
 
+    qDebug() << firstTime << "F1";
+    qDebug() << secondTime << "F1";
     approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
     approx.calculateApproximation(QString("games_%1/results/result%2.txt")
                                   .arg(QDate::currentDate().toString("dd_MM_yyyy"))
                                   .arg(QTime::currentTime().toString("hh_mm_ss_zzz")), true);
 
-
+    qDebug() << approx.getFirstErrors() << "F";
+    qDebug() << approx.getSecondErrors() << "F";
     double coef = 0.04;
     bool repeat = false;
     qint32 removeEndErrorsCount = 2;
+    qDebug() << "REHANDLE";
     for (qint32 i = 0; i < removeEndErrorsCount; ++i)
     {
         repeat = false;
@@ -661,6 +670,16 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
             v2.removeLast();
             repeat = true;
         }
+
+        if  (v1.size() <= 4 || v2.size() <= 4)
+        {
+            for (auto& i : cameras.keys())
+            {
+                emit readyMessageFromServer("После отбраковки осталось слишком мало измерений. Бросок не будет обработан", i);
+            }
+            return false;
+        }
+
         if (repeat)
         {
             approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
@@ -696,6 +715,9 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         }
     }
 
+    qDebug() << approx.getFirstErrors() << "L";
+    qDebug() << approx.getSecondErrors() << "L";
+
     if  (v1.size() <= 4 || v2.size() <= 4)
     {
         for (auto& i : cameras.keys())
@@ -704,6 +726,8 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
         }
         return false;
     }
+
+
     if (repeat)
     {
         approx.readData(firstVecs, secondVecs, firstTime, secondTime, EOFirstCamera.Point, EOSecondCamera.Point);
@@ -717,25 +741,34 @@ bool CameraServer::handleApproximation(BallApproximator& approx, qint32 fNum, do
 }
 void CameraServer::correctSyncTime()
 {
-    if (cameras.first().times.size() > 0
-            && cameras.last().times.size() > 0)
+    auto mainCamera = cameras.begin();
+    auto slaveCameras = ++mainCamera;
+
+    if (mainCamera->times.size() > 0)
     {
-        //qDebug() << "TIME SIZES" << cameras.first().times.size() << cameras.last().times.size();
-        quint64 timeToSearch = cameras.first().times[cameras.first().times.size() / 2] - syncTime;
-        auto times = cameras.last().times;
-        for (qint32 i = 0; i < times.size(); ++i)
+        while (slaveCameras != cameras.end())
         {
-            auto diff =  (qint64)timeToSearch - (qint64)times[i];
-            if (abs(diff) < syncTimeEpsilon)
+            if (slaveCameras->times.size() > 0)
             {
-                //qDebug() << "NEW OLD SYNC TIME " << syncTime << syncTime + diff;
-                syncTime = syncTime + diff;
+                quint64 timeToSearch = mainCamera->times[mainCamera->times.size() / 2] - syncTime;
+                auto times = slaveCameras->times;
+                for (qint32 i = 0; i < times.size(); ++i)
+                {
+                    auto diff =  (qint64)timeToSearch - (qint64)times[i];
+                    if (abs(diff) < syncTimeEpsilon)
+                    {
+                        //qDebug() << "NEW OLD SYNC TIME " << syncTime << syncTime + diff;
+                        syncTime = syncTime + diff;
+                    }
+                    //qDebug() << timeToSearch << times[i] << abs(diff) << syncTimeEpsilon;
+                }
+                slaveCameras->times.clear();
             }
-            //qDebug() << timeToSearch << times[i] << abs(diff) << syncTimeEpsilon;
+            ++slaveCameras;
         }
-        cameras.first().times.clear();
-        cameras.last().times.clear();
+        mainCamera->times.clear();
     }
+
 }
 
 
@@ -798,13 +831,14 @@ void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
             }
             case GetHitCoordinates:
             {
-                qDebug() << "HIIIIIIIIIIIIIIIIIIIT CAME";
+
                 emit readyMessageFromServer(QString("Координаты удара получены."), camera);
                 RecognizeData data;
                 quint32 size =  maxNumberOfMeasures * measureDim * sizeof(double);
                 memcpy(data.data, buffer.data(), size);
                 memcpy(&data.startTime, ((char*)data.data + size - sizeof(QTime)), sizeof(QTime));
                 memcpy(&data.size, static_cast <char*> (buffer.data()) + size, sizeof(qint32));
+                qDebug() << "HIIIIIIIIIIIIIIIIIIIT CAME" << data.size << cameras[camera].curParams.portSendStream;
                 QFile savef(QString("games_%2/results/points%1_%2")
                             .arg(cameras[camera].curParams.portSendStream)
                             .arg(QDate::currentDate().toString("dd_MM_yyyy")));
@@ -854,7 +888,7 @@ void CameraServer::handleMessageFromCamera(QTcpSocket* camera)
                 memcpy(&time, clearData.data(), sizeof(quint64));
                 cameras[camera].times.append(time);
                 if (cameras[camera].times.size() >= correctSyncTimeEvery
-                        && cameras.size() == 2 && calibrate)
+                        && cameras.size() >= 2 && calibrate)
                 {
                     correctSyncTime();
                 }
@@ -1092,6 +1126,7 @@ void CameraServer::receiveRtspVideo(qint32 port, qint32 frameCount, const QStrin
                                 double initTime = cameras.first().firstTimeBall < cameras.last().firstTimeBall ?
                                             cameras.first().firstTimeBall : cameras.last().firstTimeBall;
                                 av.setRepeatMainInfo(cameras[camera].curParams.portSendStream, coeff, tsMs / 10000000.0);
+                                av.setRepeatFrameCount(cameras[camera].curParams.portSendStream, frameCount);
                                 av.setRepeatInitTime(cameras[camera].curParams.portSendStream, initTime);
                                 //av.setRepeatCameraNumber(cameras[camera].curParams.portSendStream);
                                 //}
@@ -1405,7 +1440,6 @@ void CameraServer::checkRecognizeResults()
                                 cameras[cameras.keys().first()].firstTimeBall = resFirst[indexf].data[i][2];
                                 fillTimeFirst = true;
                             }
-
                         }
                         timesFirst.append(resFirst[indexf].data[i][2]);
                     }
@@ -1444,7 +1478,7 @@ void CameraServer::checkRecognizeResults()
 
                     auto m = Mat(result.last().height(), result.last().width(), CV_8UC4, (void*)result.last().constBits());
                     cvtColor(m, m, CV_RGBA2RGB); // в отдельную функцию
-                    visualizer.setCurrentRepeatState(ApproximationVisualizer::RepeatVisualizeState::ShowResultPicture, 3000, m);
+                    visualizer.setCurrentRepeatState(ApproximationVisualizer::RepeatVisualizeState::ShowResultPicture, 4000, m);
                     visualizer.setLastApproximation(approx);
                     emit resultPictureReady(result.first());
 
@@ -1547,7 +1581,9 @@ void CameraServer::checkHitResults()
             {
                 for (qint32 j = 0; j < resSecond.size(); ++j)
                 {
+
                     double delta = std::abs(resFirst[i].data[0][2] - resSecond[j].data[0][2]);
+                    qDebug() << "hit delta" << delta;
                     if (min > delta)
                     {
                         min = delta;
@@ -1569,6 +1605,12 @@ void CameraServer::checkHitResults()
                 {
                     ApproximationVisualizer& visualizer = ApproximationVisualizer::instance();
                     HitParameters hitParams = approx->calculateHitParameters();
+                    Mat m;
+                    visualizer.getResultPicture().copyTo(m);
+                    auto img = visualizer.addHitInfo(m, hitParams);
+                    m = Mat(img.height(), img.width(), CV_8UC4, (void*)img.constBits());
+                    cvtColor(m, m, CV_RGBA2BGR); // в отдельную функцию
+                    visualizer.setResultPicture(m);
                     qDebug() << "HIIIIIIIIIIIIIIIIIIIT" << hitParams.angle << hitParams.distance << hitParams.initSpeed;
                     // добавить к картинке
                 }

@@ -614,14 +614,15 @@ void ApproximationVisualizer::drawLastShortPicture(bool& strike, double& vBegin,
                                                    Calibration::Position2D& XYShift, Calibration::Position& pShift)
 {
     QPixmap resFone("://resources/zone_res.png");
+    auto resFoneScaled = resFone.scaled(resFone.width() , resFone.height() /*+ 120*/);
     double xFoneRes = 156;
     double yFoneRes = 188;
     QGraphicsPixmapItem* resFoneItem =  new QGraphicsPixmapItem(picture);
-    resFoneItem->setPixmap(resFone);
+    resFoneItem->setPixmap(resFoneScaled);
     resFoneItem->setPos(xFoneRes, yFoneRes);
 
-    QPixmap pitch("://resources/pitch.png");
-    double xTitle = 250;
+    QPixmap pitch("://resources/pitching.png");
+    double xTitle = 215;
     double yTitle = 220;
     QGraphicsPixmapItem* pitchItem =  new QGraphicsPixmapItem(picture);
     pitchItem->setPixmap(pitch);
@@ -779,6 +780,95 @@ QImage ApproximationVisualizer::makeShortPicture(BallApproximator &approx, QStri
     scenePicture->render(&painter);
     QImage scaled = image.scaled(scenarioWidth, scenarioHeight);
     return scaled;
+}
+
+QImage ApproximationVisualizer::addHitInfo(Mat img, HitParameters& hParams)
+{
+    scenePicture->removeItem(picture);
+    delete picture;
+    QPixmap px = QPixmap::fromImage(QImage((unsigned char*) img.data, img.cols, img.rows, QImage::Format_RGB888));
+    picture = new QGraphicsPixmapItem(px);
+    scenePicture->addItem(picture);
+
+
+    QPixmap resFone("://resources/zone_res.png");
+    auto resFoneScaled = resFone.scaled(resFone.width() / 1.5, resFone.height() / 1.5 /*+ 80*/);
+    double xFoneRes = 785;
+    double yFoneRes = 125;
+    QGraphicsPixmapItem* resFoneItem =  new QGraphicsPixmapItem(picture);
+    resFoneItem->setPixmap(resFoneScaled);
+    resFoneItem->setPos(xFoneRes, yFoneRes);
+
+    QPixmap batt("://resources/batting.png");
+    auto battScaled = batt.scaled(batt.width() / 1.5, batt.height() / 1.5);
+    double xTitle = 839;
+    double yTitle = 145;
+    QGraphicsPixmapItem* pitchItem =  new QGraphicsPixmapItem(picture);
+    pitchItem->setPixmap(battScaled);
+    pitchItem->setPos(xTitle, yTitle);
+
+    QFont font("Segoe UI", 66);
+    font.setBold(true);
+    font.setItalic(true);
+    QGraphicsTextItem * textItemVBegin = new QGraphicsTextItem(picture);
+    textItemVBegin->setDefaultTextColor(QColor(255, 255, 255));
+    textItemVBegin->setPlainText(QString::number(hParams.initSpeed, 'f', 0));
+    double xSpeed = 809;
+    double ySpeed = 195;
+    textItemVBegin->setPos(xSpeed, ySpeed);
+    auto effect = new QGraphicsDropShadowEffect(textItemVBegin);
+    effect->setColor(QColor(0, 0, 0));
+    textItemVBegin->setGraphicsEffect(effect);
+    textItemVBegin->setFont(font);
+
+    QPixmap speed("://resources/speed.png");
+    auto speedScaled = speed.scaled(speed.width() / 1.5, speed.height() / 1.5);
+    double xSpeedTitle = 980;
+    double ySpeedTitle = 245;
+    QGraphicsPixmapItem* speedTitleItem =  new QGraphicsPixmapItem(picture);
+    speedTitleItem->setPixmap(speedScaled);
+    speedTitleItem->setPos(xSpeedTitle, ySpeedTitle);
+
+    QGraphicsTextItem * textItemAngle = new QGraphicsTextItem(picture);
+    textItemAngle->setDefaultTextColor(QColor(255, 255, 255));
+    textItemAngle->setPlainText(QString::number(hParams.angle, 'f', 0) + "°");
+    double xAngle = 800;
+    double yAngle = 290;
+    textItemAngle->setPos(xAngle, yAngle);
+    effect = new QGraphicsDropShadowEffect(textItemAngle);
+    effect->setColor(QColor(0, 0, 0));
+    textItemAngle->setGraphicsEffect(effect);
+    textItemAngle->setFont(font);
+
+    //    QGraphicsTextItem * textItemDistance = new QGraphicsTextItem(picture);
+    //    textItemDistance->setDefaultTextColor(QColor(255, 255, 255));
+    //    textItemDistance->setPlainText(QString::number(hParams.distance, 'f', 0));
+    //    double xDistance = 800;
+    //    double yDistance = 385;
+    //    textItemDistance->setPos(xDistance, yDistance);
+    //    effect = new QGraphicsDropShadowEffect(textItemDistance);
+    //    effect->setColor(QColor(0, 0, 0));
+    //    textItemDistance->setGraphicsEffect(effect);
+    //    textItemDistance->setFont(font);
+
+    //    QPixmap meters("://resources/meters.png");
+    //    auto metersScaled = meters.scaled(meters.width() / 1.5, meters.height() / 1.5);
+    //    double xMetersTitle = 980;
+    //    double yMetersTitle = 450;
+    //    QGraphicsPixmapItem* metersTitleItem =  new QGraphicsPixmapItem(picture);
+    //    metersTitleItem->setPixmap(metersScaled);
+    //    metersTitleItem->setPos(xMetersTitle, yMetersTitle);
+
+    scenePicture->setSceneRect(scenePicture->itemsBoundingRect());
+    QImage image = QImage (scenePicture->sceneRect().size().toSize(), QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+
+    QPainter painter(&image);
+    scenePicture->render(&painter);
+    QImage scaled = image.scaled(scenarioWidth, scenarioHeight);
+    return scaled;
+
+
 }
 
 void ApproximationVisualizer::readDrawTracerDebugData(const QString& fVideo, Calibration::ExteriorOr& EOFirstCamera,
@@ -1071,6 +1161,11 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                                            scenarioData.repeats.first().first.initTime);
                     Mat preScaled, scaled;
                     m(scenarioData.scaleRects[scenarioData.repeats.keys().first()]).copyTo(preScaled);
+                    ++handledFrames;
+                    if (handledFrames == scenarioData.repeats.first().first.frameCount)
+                    {
+                        currentRepeatState = ShowResultPicture;
+                    }
                     locker.unlock();
                     cv::resize(preScaled, scaled, Size(scenarioWidth, scenarioHeight));
                     qint64 elapsed = t->elapsed();
@@ -1081,7 +1176,8 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                     {
                         QThread::msleep(needToWait);
                     }
-                    ++handledFrames;
+
+
                 }
             }
             break;
@@ -1455,6 +1551,12 @@ double ApproximationVisualizer::calculateBatterPositionCorr(qint32 number, Mat i
 
 }
 
+void ApproximationVisualizer::setResultPicture(Mat m)
+{
+    QMutexLocker locker(&scenarioMutex);
+    scenarioData.resultPicture = m;
+}
+
 void ApproximationVisualizer::handleNewScenarioState(RepeatVisualizeState state, cv::Mat mat, double time, bool clear = true)
 {
     //resetRepeatVisualise();
@@ -1552,6 +1654,18 @@ void ApproximationVisualizer::setRepeatMainInfo(qint32 camNum, double coef, doub
     scenarioData.repeats.insert(camNum, qMakePair(CorrTime(coef, -1, sTime), QLinkedList <QPair <cv::Mat, double>>()));
 }
 
+void ApproximationVisualizer::setRepeatFrameCount(qint32 camNum, qint32 count)
+{
+    if (scenarioData.repeats.contains(camNum))
+    {
+        scenarioData.repeats[camNum].first.frameCount = count;
+    }
+    else
+    {
+        Q_ASSERT(false);
+    }
+}
+
 void ApproximationVisualizer::setRepeatCameraNumber(qint32 number)
 {
     scenarioData.cameraNumber = number;
@@ -1588,4 +1702,5 @@ void ApproximationVisualizer::correctPixmap(QPixmap &px, double &xOld)
     qint32 xScale = correctCoordinates(xTmp + px.width());
     px = px.scaled(xScale - xOld, px.height());
 }
+
 
