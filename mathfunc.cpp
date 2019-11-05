@@ -323,11 +323,11 @@ double atan2m(double yf, double xf) noexcept
     {
         if (yf > 0)
         {
-            ang = M_PI/2.;
+            ang = M_PI / 2.;
         }
         else
         {
-            ang = -M_PI/2.;
+            ang = -M_PI / 2.;
         }
     }
     return ang;

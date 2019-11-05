@@ -1102,7 +1102,7 @@ void ApproximationVisualizer::runRepeatStreamInternal()
         {
             if (!newRepeat)
             {
-                qDebug() << "NEW REPEAT" << scenarioData.repeats.size();
+               // qDebug() << "NEW REPEAT" << scenarioData.repeats.size();
                 repeatData = RepeatVisualizeData();
                 newRepeat = true;
             }
@@ -1111,7 +1111,7 @@ void ApproximationVisualizer::runRepeatStreamInternal()
             {
                 double corrFirst = scenarioData.repeats.first().first.corr;
                 double corrSecond = scenarioData.repeats.last().first.corr;
-                qDebug() << "CHECK CONFLICT" << corrFirst << corrSecond;
+               // qDebug() << "CHECK CONFLICT" << corrFirst << corrSecond;
                 if (qFuzzyCompare(corrFirst, -1) || qFuzzyCompare(corrSecond, -1))
                 {
                     continue;
@@ -1121,14 +1121,14 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                     double timeFirst = scenarioData.repeats.first().first.startTime;
                     double timeSecond = scenarioData.repeats.last().first.startTime;
                     if (scenarioData.approx.isNull()
-                            || abs(timeFirst - timeSecond) > 1)
+                            || abs(timeFirst - timeSecond) > 1
+                            || scenarioData.approx->getTIN() - (timeFirst / 1e6) > approxRepeatMaxTimeDiff
+                            || scenarioData.approx->getTIN() - (timeSecond / 1e6) > approxRepeatMaxTimeDiff)
                     {
-                        qDebug() << "INCORRECT REPEATS" << timeFirst << timeSecond;
                         scenarioData.repeats.clear();
                         currentRepeatState = ShowInit;
                         continue;
                     }
-                    qDebug() << "RESOLVE CONFLICT" << corrFirst << corrSecond << scenarioData.repeats.keys().first() << scenarioData.repeats.keys().last();
                     if (corrFirst > corrSecond)
                     {
                         scenarioData.repeats.remove(scenarioData.repeats.keys().last());
@@ -1149,8 +1149,8 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                 {
                     auto& v = scenarioData.repeats.first().second;
                     QPair <cv::Mat, double> pair = v.first();
-                    Mat raw;
-                    pair.first.copyTo(raw); // вот тут сделать просто raw = pair.first
+                    Mat raw = pair.first;
+                    //pair.first.copyTo(raw); // вот тут сделать просто raw = pair.first
                     v.removeFirst();
                     cvtColor(raw, raw, CV_BGR2RGB);
                     QScopedPointer <QElapsedTimer> t (new QElapsedTimer());
@@ -1164,6 +1164,8 @@ void ApproximationVisualizer::runRepeatStreamInternal()
                     ++handledFrames;
                     if (handledFrames == scenarioData.repeats.first().first.frameCount)
                     {
+                        scenarioData.approx.clear();
+                        scenarioData.repeats.clear();
                         currentRepeatState = ShowResultPicture;
                     }
                     locker.unlock();
@@ -1607,10 +1609,8 @@ void ApproximationVisualizer::setCurrentRepeatState(RepeatVisualizeState state, 
                 scenarioData.repeats.clear();
                 locker.unlock();
             }
-            qDebug() << "SET DELAY";
             QTimer::singleShot(delta, this, [this, time, mat, state]()
             {
-                qDebug() << "HANDLE DELAY";
                 handleNewScenarioState(state, mat, time, false);
             });
         }

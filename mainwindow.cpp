@@ -10,11 +10,6 @@
 #include <opencv2/core.hpp>
 using namespace cv;
 
-struct TestSt
-{
-    qint32 cnt = 60;
-
-};
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent), server(new CameraServer()),
@@ -166,6 +161,8 @@ MainWindow::MainWindow(QWidget *parent) :
         dir.mkdir("pictures");
         dir.setCurrent(QApplication::applicationDirPath());
     }
+
+
     // av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_21_19_31.avi")
     //                   , QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video4510_21_19_31.avi"));
     //av.drawTracerDebug(QString("D:/REC_CAMERAS/actual_server/build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_17_09_2019/video3850_20_56_13.avi")
@@ -173,12 +170,24 @@ MainWindow::MainWindow(QWidget *parent) :
 
     // rtsp://admin:dRX77QDV@10.20.55.110:554/cam/realmonitor?channel=1&subtype=0
     //    qputenv("GST_DEBUG", "4");
-    //    QString pipeLine = QString("rtspsrc location=rtsp://10.20.55.104:554/snl/live/1/1/Ux/sido=-QBP00YJW2yhJ ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
-    //    cv::VideoCapture cap(pipeLine.toStdString(), cv::CAP_GSTREAMER);
-    //    if (cap.isOpened())
-    //    {
-    //        qDebug() << "qq";
-    //    }
+       // QString pipeLine = QString("rtspsrc location=rtsp://10.20.55.104:554/snl/live/1/1/Ux/sido=-QBP00YJW2yhJ ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
+        QString pipeLine = QString("rtspsrc location=rtsp://admin:dRX77QDV@10.20.55.110:554/cam/realmonitor?channel=1&subtype=0 ! rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! appsink");
+        cv::VideoCapture cap(pipeLine.toStdString(), cv::CAP_GSTREAMER);
+        if (cap.isOpened())
+        {
+
+            Mat m;
+            double prev = 0;
+            while (true)
+            {
+                if (cap.read(m))
+                {
+                    double cur = cap.get(CV_CAP_PROP_POS_MSEC);
+                    qDebug() <<  m.cols << m.rows << cap.get(CV_CAP_PROP_POS_MSEC) << cur - prev;
+                    prev = cur;
+                }
+            }
+        }
     //    QElapsedTimer t;
     //    t.start();
     //    QThread::msleep(100);
@@ -201,9 +210,14 @@ MainWindow::MainWindow(QWidget *parent) :
 //        }
 //    }
 //    qDebug() << "qq";
-   // BallApproximator approx;
-   // server->testApproximation("D:/REC_CAMERAS/actual_server/"
-    //                         "build-camera_server_debug_app-Desktop_Qt_5_12_2_MSVC2017_64bit-Debug/games_01_10_2019/test2.txt", approx);
+//    BallApproximator approx;
+//    QDir dirr("D:/REC_CAMERAS/actual_server/results/");
+//    auto list = dirr.entryList(QDir::Files);
+//    for (auto i : list)
+//    {
+//        server->testApproximation(QString("D:/REC_CAMERAS/actual_server/results/") + i, approx);
+//    }
+
   // server->testApproximation("D:/REC_CAMERAS/actual_server/ideo_16_38_50", approx);
 //    server->testApproximation("D:/REC_CAMERAS/actual_server/ideo_19_20_29", approx);
 //    QImage img = av.makeShortPicture(approx, QString());

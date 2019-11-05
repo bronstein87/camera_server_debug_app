@@ -267,7 +267,7 @@ private:
     constexpr const static double coeff = 25;
     constexpr const static qint32 scenarioWidth = 1280;
     constexpr const static qint32 scenarioHeight = 720;
-
+    constexpr const static double approxRepeatMaxTimeDiff = 1.2;
 
 
 };

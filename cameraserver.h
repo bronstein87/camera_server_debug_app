@@ -32,6 +32,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <approximationvisualizer.h>
+#include <limits.h>
 
 
 
@@ -165,6 +166,7 @@ struct CurrentCameraParams
     qint32 debugRecFlag = 0;
     qint32 debounceEnable = -1;
     qint32 debounceValue = -1;
+    qint32 rotate = -1;
 };
 #pragma pack(pop)
 
@@ -250,6 +252,7 @@ struct CameraOptions
     qint32 debugRecFlag = -1;
     qint32 debounceEnable = -1;
     qint32 debounceValue = -1;
+    qint32 rotate = -1;
 };
 #pragma pack(pop)
 
@@ -304,7 +307,9 @@ public:
 
     void syncFrame(AppendFrameRule rule = All, bool dontSetStream = false);
 
-    void testApproximation(const QString& filePath, BallApproximator &approx, const QString &prefix = QString());
+    void setSyncAnyWay(bool f) {syncAnyWay = f;}
+
+    void testApproximation(const QString& filePath, BallApproximator &approx, const QString &prefix = QString(), double coef = 0.04);
 
     void setWriteVideo(QTcpSocket* socket, bool f) {cameras[socket].writeVideo = f;}
 
@@ -398,7 +403,9 @@ private:
     QMutex autoCalibrateMutex;
     QMutex repeatMutex;
     bool calibrate = false;
-    QAtomicInteger <qint64> syncTime = 0;
+    QMap <qint32, QAtomicInteger <qint64>> syncTime;
+    bool syncAnyWay = false;
+   // QAtomicInteger <qint64> syncTime = 0;
     //QAtomicInteger <qint8> repeatCameraChosen = 0;
     bool autoCalibrate = false;
     bool updateAutoCalibrate = false;

@@ -45,16 +45,18 @@ public:
                   Calibration::Position fPos, Calibration::Position sPos);
 
 
-    void rotateMovementParameters(double pos[3], double v[3], double a[3]);
+    void rotateMovementParameters(double pos[3], double v[3], double a[3], double angle  = 45, AxisType axis = zAxis, bool applyToGiven = false);
 
     void calculateIntercept(double plane[4], double pos[3], double v[3], double a[3],
     double &t1, double &t2, double coord1[3], double coord2[3]) ;
 
     bool calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
                                     double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
-                                    double& xBegin, double rot[], double &W, double& tFarZone);
+                                    double& xBegin, double rot[], double &W, double& tFarZone, bool hit = false);
 
-    HitParameters calculateHitParameters();
+
+
+    HitParameters calculateHitParameters(double initT);
 
     void getPointAt(double time, double point[3]);
 
@@ -151,6 +153,8 @@ public:
 
     void solveQuadratic(double a, double b, double c, double& x1, double& x2);
 
+    static QPair<double, double> calculatePitchHitIntercept(BallApproximator& pitch, BallApproximator& hit);
+
     static const int maxNumberOfMeasures = 200;
 
 private:
@@ -224,6 +228,7 @@ private:
     void ERRORS(double *X);
 
     void PROGN(double *X);
+
 };
 
 #endif // BALLAPPROXIMATOR_H

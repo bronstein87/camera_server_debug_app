@@ -18,6 +18,7 @@ CameraOptionsWindow::CameraOptionsWindow(Synchronizer* snc, CameraServer* server
     ui->rawTcpStreamCheckBox->setChecked(false);
     connect(sync, &Synchronizer::changed, cameraServer, &CameraServer::updateParamsForAllCameras);
     loadSettings();
+    ui->saveVideoIntervalGroupBox->setVisible(false);
 }
 
 
@@ -313,6 +314,9 @@ void CameraOptionsWindow::handleCurrentCameraParams(QTcpSocket* camera, const Cu
         ui->debounceSpinBox->blockSignals(true);
         ui->debounceSpinBox->setValue(params.debounceValue);
         ui->debounceSpinBox->blockSignals(false);
+        ui->rotateCheckBox->blockSignals(true);
+        ui->rotateCheckBox->setChecked(params.rotate);
+        ui->rotateCheckBox->blockSignals(false);
     }
 
 }
@@ -969,17 +973,20 @@ void CameraOptionsWindow::on_checkSyncPushButton_clicked()
     if (sync->isConnected())
     {
         sync->blockSignals(true);
-        if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 1))
+        if (sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 1) && sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateSecond, 1))
         {
-            if (sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1))
+            if (sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1) && sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x2))
             {
                 QThread::msleep(100);
                 cameraServer->checkSync();
                 QTimer::singleShot(500, this, [this]()
                 {
                     sync->sendCommand(Synchronizer::SynchronizerProtocol::StopSync, 0x1);
+                    sync->sendCommand(Synchronizer::SynchronizerProtocol::StopSync, 0x2);
                     sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateFirst, 60);
+                    sync->sendCommand(Synchronizer::SynchronizerProtocol::SetFrameRateSecond, 60);
                     sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x1);
+                    sync->sendCommand(Synchronizer::SynchronizerProtocol::StartSync, 0x2);
                 }
                 );
 
@@ -1252,4 +1259,16 @@ void CameraOptionsWindow::on_showMainHitPushButton_clicked()
         QRect r = QRect(params.recRois.mainHitSearchRect.x, params.recRois.mainHitSearchRect.y, params.recRois.mainHitSearchRect.width, params.recRois.mainHitSearchRect.height);
         roiScene->drawROI(r);
     }
+}
+
+void CameraOptionsWindow::on_rotateCheckBox_toggled(bool checked)
+{
+    CameraOptions opt;
+    opt.rotate = checked;
+    cameraServer->sendParametersToCamera(opt, currentCamera);
+}
+
+void CameraOptionsWindow::on_syncAnyWayCheckBox_toggled(bool checked)
+{
+    cameraServer->setSyncAnyWay(checked);
 }

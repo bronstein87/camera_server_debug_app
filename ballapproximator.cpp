@@ -179,23 +179,52 @@ void BallApproximator::readData(QVector<Calibration::Position> f, QVector<Calibr
     //fprintf(FLIST,"TIN= %11.7f\n",TIN);
 }
 
-void BallApproximator::rotateMovementParameters(double pos[], double v[], double a[])
+void BallApproximator::rotateMovementParameters(double pos[], double v[], double a[], double angle, AxisType axis, bool applyToGiven)
 {
     double posTmp[3], vTmp[3], aTmp[3];
-    posTmp[0] = xNonLinearParams[0];
-    vTmp[0] = xNonLinearParams[1];
-    aTmp[0] = xNonLinearParams[2];
+    if (applyToGiven)
+    {
+        posTmp[0] = pos[0];
+        vTmp[0] = v[0];
+        aTmp[0] = a[0];
 
-    posTmp[1] = yNonLinearParams[0];
-    vTmp[1] = yNonLinearParams[1];
-    aTmp[1] = yNonLinearParams[2];
+        posTmp[1] = pos[1];
+        vTmp[1] = v[1];
+        aTmp[1] = a[1];
 
-    posTmp[2] = zNonLinearParams[0];
-    vTmp[2] = zNonLinearParams[1];
-    aTmp[2] = zNonLinearParams[2];
+        posTmp[2] = pos[2];
+        vTmp[2] = v[2];
+        aTmp[2] = a[2];
+    }
+    else
+    {
+        posTmp[0] = xNonLinearParams[0];
+        vTmp[0] = xNonLinearParams[1];
+        aTmp[0] = xNonLinearParams[2];
+
+        posTmp[1] = yNonLinearParams[0];
+        vTmp[1] = yNonLinearParams[1];
+        aTmp[1] = yNonLinearParams[2];
+
+        posTmp[2] = zNonLinearParams[0];
+        vTmp[2] = zNonLinearParams[1];
+        aTmp[2] = zNonLinearParams[2];
+    }
+
     double mInit [3][3] {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
     double mRot[3][3];
-    rotateOZ(45.0 * degreesToRad, mInit, mRot);
+    switch (axis)
+    {
+    case zAxis:
+        rotateOZ(angle * degreesToRad, mInit, mRot);
+        break;
+    case yAxis:
+        rotateOY(angle * degreesToRad, mInit, mRot);
+        break;
+    case xAxis:
+        rotateOX(angle * degreesToRad, mInit, mRot);
+        break;
+    }
 
     multMatrixVector(mRot, posTmp, pos);
     multMatrixVector(mRot, vTmp, v);
@@ -238,10 +267,41 @@ double &t1, double &t2, double coord1[3], double coord2[3])
 
 bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, double& T, double& vBegin,
                                                   double& vEnd, double& dxNoRot, double& dzNoRot, double& zBegin,
-                                                  double& xBegin, double rot[3], double& W, double& tFarZone)
+                                                  double& xBegin, double rot[3], double& W, double& tFarZone, bool hit)
 {
     double pos[3], v[3], a[3];
-    rotateMovementParameters(pos, v , a);
+    double g[3] {0, 0, 9.8066};
+    if (!hit)
+    {
+        rotateMovementParameters(pos, v , a);
+    }
+    else
+    {
+        qDebug() << xNonLinearParams[0] << xNonLinearParams[1] << xNonLinearParams[2];
+        qDebug() << yNonLinearParams[0] << yNonLinearParams[1] << yNonLinearParams[2];
+        qDebug() << zNonLinearParams[0] << zNonLinearParams[1] << zNonLinearParams[2];
+        double length = sqrt(xNonLinearParams[1] * xNonLinearParams[1]
+                + yNonLinearParams[1] * yNonLinearParams[1]
+                + zNonLinearParams[1] * zNonLinearParams[1]);
+        double lengthXY = sqrt(xNonLinearParams[1] * xNonLinearParams[1] + yNonLinearParams[1] * yNonLinearParams[1]);
+        double angleOz = atan2m(xNonLinearParams[1] / lengthXY, yNonLinearParams[1] / lengthXY) * radToDegrees;
+        rotateMovementParameters(pos, v , a, angleOz);
+        double angleOx = atan2m(v[2] / length,  v[1] / length) * radToDegrees;
+        rotateMovementParameters(pos, v, a, -angleOx, xAxis, true);
+        double mInit [3][3] {{1, 0, 0}, {0, 1, 0}, {0, 0, 1}};
+
+        double mRot[3][3];
+        rotateOX(-angleOx * degreesToRad, mInit, mRot);
+        double gTmp[3]{0, 0, 9.8066};
+        multMatrixVector(mRot, gTmp, g);
+        qDebug() << pos[0] << v[0] << a[0];
+        qDebug() << pos[1] << v[1] << a[1];
+        qDebug() << pos[2] << v[2] << a[2];
+
+        qDebug() << g[0] << g[1] << g[2];
+        qDebug() << "finish";
+    }
+
     for (qint32 i = 0; i < 3; ++i)
     {
         a[i] *= 2;
@@ -257,7 +317,15 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     //    const double maxHeight= 1.045;//1.075;
     const double offset = 0.03;
 
-    solveQuadratic(a[1] / 2, v[1], pos[1] - yBegin, t1, t2);
+    if (hit)
+    {
+        t2 = 0;
+    }
+    else
+    {
+        solveQuadratic(a[1] / 2, v[1], pos[1] - yBegin, t1, t2);
+    }
+
 
     xBegin = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
     zBegin = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
@@ -268,7 +336,15 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     vBegin = sqrt(vxBegin * vxBegin + vyBegin * vyBegin + vzBegin * vzBegin);
 
     //double yEnd = 0;
-    solveQuadratic(a[1] / 2, v[1], pos[1] - closeZoneY, t1, t2);
+    if (hit)
+    {
+        t2 = T0[N0 - 1] - TIN;
+    }
+    else
+    {
+        solveQuadratic(a[1] / 2, v[1], pos[1] - closeZoneY, t1, t2);
+    }
+
     double xEnd = pos[0] + v[0] * t2 + a[0] / 2 * t2 * t2;
     double zEnd = pos[2] + v[2] * t2 + a[2] / 2 * t2 * t2;
     double vyEnd = v[1] + a[1]  * t2;
@@ -299,12 +375,28 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     double vMag = (vBegin + vEnd) / 2;
     T = tEnd - tBegin;
 
-    const double g = 9.8066;
-    double axMag = a[0] - a[1] * vxMag/vyMag;
-    double azMag = a[2] + g - a[1] * vzMag / vyMag;
-    //double deltaAx = a[0] - axMag;
-    //double deltaAy = a[1] + axMag * (vxMag/vyMag) + azMag * (vzMag / vyMag);
-    //double deltaAz = a[2] + g - azMag;
+
+    a[1] = a[1] + g[1];
+    a[2] = a[2] + g[2];
+
+    double axMag, azMag, deltaAx, deltaAy, deltaAz;
+    if (hit)
+    {
+        axMag = a[0];
+        azMag = a[2];
+        deltaAx = 0;
+        deltaAy = a[1];
+        deltaAz = 0;
+    }
+    else
+    {
+        axMag = a[0] - a[1] * vxMag / vyMag;
+        azMag = a[2] - a[1] * vzMag / vyMag;
+        deltaAx = a[0] - axMag;
+        deltaAy = a[1] + axMag * (vxMag/vyMag) + azMag * (vzMag / vyMag);
+        deltaAz = a[2] - azMag;
+    }
+
 
     double axNoRot = a[0] - axMag;
     double azNoRot = a[2] - azMag;
@@ -320,15 +412,23 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     double rho = 1.225;
     double m = 0.143;
     double K = 1.0 / 2.0 * rho * A / m;
-    //double CD = sqrt(deltaAz * deltaAz  + deltaAy * deltaAy + deltaAz * deltaAz) / (K * vyMag * vMag);
+    double CD = sqrt(deltaAz * deltaAz  + deltaAy * deltaAy + deltaAz * deltaAz) / (K * vyMag * vMag);
+    qDebug() << CD;
     double CL = sqrt(axMag * axMag + azMag * azMag) / (K * vMag * vMag);
-    double S = -(583.0 * CL) / (2333.0 * CL - 1120.0);
+    double S;
+    if (CL < 0.15)
+    {
+        S = CL / 1.5;
+    }
+    else
+    {
+        S = (CL - 0.09) / 0.6;
+    }
+    double S2 = -(583.0 * CL) / (2333.0 * CL - 1120.0);
+    qDebug() << S << S2;
+   // double S = -(583.0 * CL) / (2333.0 * CL - 1120.0);
     double metersToMiles =  3.6 / 1.609;
     W = (S / 8.56e-3) * vMag * metersToMiles;
-    for (qint32 i = 0; i < 3; ++i)
-    {
-        a[i] /= 2;
-    }
 
     double mInit[3][3] {{1, 0 , 0}, {0, 1, 0}, {0, 0, 1}};
     double mRot[3][3];
@@ -338,7 +438,7 @@ bool BallApproximator::calculatePhysicsParameters(double& tBegin, double& tEnd, 
     return strike;
 }
 
-HitParameters BallApproximator::calculateHitParameters()
+HitParameters BallApproximator::calculateHitParameters(double initT)
 {
     HitParameters hitParams;
     double initSpeed[3] {xNonLinearParams[1], yNonLinearParams[1], zNonLinearParams[1]};
@@ -371,7 +471,7 @@ HitParameters BallApproximator::calculateHitParameters()
     double y[maxCount];
     y[0] = zNonLinearParams[0];
     double x[maxCount];
-    x[0] = 0;
+    x[0] = yNonLinearParams[0];
     double cs[maxCount];
     cs[0] = lenghtXY / lenghtFull;
     double acc[maxCount];
@@ -424,6 +524,58 @@ void BallApproximator::solveQuadratic(double a, double b, double c, double& x1, 
     }
 }
 
+QPair <double, double> BallApproximator::calculatePitchHitIntercept(BallApproximator& pitch, BallApproximator& hit)
+{
+    double timeStep = 0.001;
+    double diff = 5e-4;
+    double diffDist = 5e-2;
+    double t1 = 0.5;
+    double t2 = -0.5;
+    double t1Prev = 10, t2Prev = 10;
+    double alpha = 0.0002;
+    qint32 i = 0;
+    qint32 maxIt = 500;
+    double currentValue;
+    double prevCurrent = 10e6;
+    do
+    {
+        currentValue = sqrt(pow((pitch.xNonLinearParams[0] + pitch.xNonLinearParams[1] * t1 + pitch.xNonLinearParams[2] * t1 * t1) -
+                (hit.xNonLinearParams[0] + hit.xNonLinearParams[1] * t2 + hit.xNonLinearParams[2] * t2 * t2), 2) +
+                pow((pitch.yNonLinearParams[0] + pitch.yNonLinearParams[1] * t1 + pitch.yNonLinearParams[2] * t1 * t1) -
+                (hit.yNonLinearParams[0] + hit.yNonLinearParams[1] * t2 + hit.yNonLinearParams[2] * t2 * t2), 2) +
+                pow((pitch.zNonLinearParams[0] + pitch.zNonLinearParams[1] * t1 + pitch.zNonLinearParams[2] * t1 * t1) -
+                (hit.zNonLinearParams[0] + hit.zNonLinearParams[1] * t2 + hit.zNonLinearParams[2] * t2 * t2), 2));
+        double t1Delta = t1 + timeStep;
+        double firstT1Delta = sqrt(pow((pitch.xNonLinearParams[0] + pitch.xNonLinearParams[1] * t1Delta + pitch.xNonLinearParams[2] * t1Delta * t1Delta) -
+                (hit.xNonLinearParams[0] + hit.xNonLinearParams[1] * t2 + hit.xNonLinearParams[2] * t2 * t2), 2) +
+                pow((pitch.yNonLinearParams[0] + pitch.yNonLinearParams[1] * t1Delta + pitch.yNonLinearParams[2] * t1Delta * t1Delta) -
+                (hit.yNonLinearParams[0] + hit.yNonLinearParams[1] * t2 + hit.yNonLinearParams[2] * t2 * t2), 2) +
+                pow((pitch.zNonLinearParams[0] + pitch.zNonLinearParams[1] * t1Delta + pitch.zNonLinearParams[2] * t1Delta * t1Delta) -
+                (hit.zNonLinearParams[0] + hit.zNonLinearParams[1] * t2 + hit.zNonLinearParams[2] * t2 * t2), 2));
+        double der = (firstT1Delta  - currentValue) / timeStep;
+        double t1Tmp = t1 - alpha * der;
+        double t2Delta = t2 + timeStep;
+        double firstT2Delta = sqrt(pow((pitch.xNonLinearParams[0] + pitch.xNonLinearParams[1] * t1 + pitch.xNonLinearParams[2] * t1 * t1) -
+                (hit.xNonLinearParams[0] + hit.xNonLinearParams[1] * t2Delta + hit.xNonLinearParams[2] * t2Delta * t2Delta), 2) +
+                pow((pitch.yNonLinearParams[0] + pitch.yNonLinearParams[1] * t1 + pitch.yNonLinearParams[2] * t1 * t1) -
+                (hit.yNonLinearParams[0] + hit.yNonLinearParams[1] * t2Delta + hit.yNonLinearParams[2] * t2Delta * t2Delta), 2) +
+                pow((pitch.zNonLinearParams[0] + pitch.zNonLinearParams[1] * t1 + pitch.zNonLinearParams[2] * t1 * t1) -
+                ( hit.zNonLinearParams[0] + hit.zNonLinearParams[1] * t2Delta + hit.zNonLinearParams[2] * t2Delta * t2Delta), 2));
+        der = (firstT2Delta - currentValue) / timeStep;
+        t2Prev = t2;
+        t2 = t2 - alpha * der;
+        t1Prev = t1;
+        t1 = t1Tmp;
+        if (prevCurrent < currentValue)
+        {
+            alpha /= 2;
+        }
+        prevCurrent = currentValue;
+        ++i;
+    }
+    while ((abs(t1Prev - t1) > diff || abs(t2Prev - t2) > diff) && i < maxIt && currentValue > diffDist);
+    return qMakePair(t1, t2);
+}
 
 
 
@@ -432,7 +584,8 @@ void BallApproximator::solveQuadratic(double a, double b, double c, double& x1, 
 
 
 
-int BallApproximator::CHOLDET1(int N, double (*A)[nonLinearParamsCount], double *P)
+
+int BallApproximator::CHOLDET1(int N, double (*A)[nonLinearParamsCount], double* P)
 {
     int I,J,K;
     double X;

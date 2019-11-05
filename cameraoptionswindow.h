@@ -231,6 +231,10 @@ private slots:
 
     void on_showMainHitPushButton_clicked();
 
+    void on_rotateCheckBox_toggled(bool checked);
+
+    void on_syncAnyWayCheckBox_toggled(bool checked);
+
 signals:
     void correlatedImageReady(cv::Mat img, QTcpSocket* socket);
 
